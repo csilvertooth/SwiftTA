@@ -267,6 +267,34 @@ So `sceneHeight = sceneWidthNeeded * aspectRatio >= modelDiameter` is guaranteed
 
 `UnitScript.Thread.Stack.pop(count: n)` was returning `suffix(from: n - 1)` instead of `suffix(n)`. `suffix(from:)` slices from a start index, so the returned array's length depended on the current stack depth — you only got exactly `n` elements when the stack happened to hold `2·n - 1` items. Everywhere else it returned the wrong count, so `getFunctionResult`, `startScript`, and `callScript` popped whatever random slice the arithmetic landed on. Fixed by using `suffix(n)`.
 
+## Inline `turn/move now` + world-space piece queries
+
+TA walker `Create` scripts (CORMKL and every other TAESC spider) do an in-loop binary-search IK:
+
+```
+while (local8 != 0) {
+    local5 = local7 + local8;
+    turn Leg1-2 to x-axis <local5> now;
+    ...
+    if (get HYPOT(get PIECE_Y(Leg1-0) - get PIECE_Y(End1), …) > local3) {
+        local7 = local7 + local8;
+    }
+    local8 = local8 / 2;
+}
+```
+
+Each iteration turns a leg segment **and** immediately reads the end-effector position via `PIECE_XZ` / `PIECE_Y` to decide the next bisection step. Our VM queued `turn ... now` as a `setAngle` animation that only flushed in the post-`run()` `applyAnimations` step, so the loop always read stale state and never converged. Combined with the earlier `getUnitValue` stubs, legs ended up folded straight under the body.
+
+Fix:
+
+- `UnitScript.Context.run` now takes `inout UnitModel.Instance` and threads it through via `UnsafeMutablePointer` so every thread in one tick mutates the same state.
+- `turnPieceNow` / `movePieceNow` in [UnitScript+Instructions.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift) write directly to `pieces[i].turn` / `pieces[i].move`. Animated `... with speed X` turns still go through `Context.animations` and time-based `applyAnimations`.
+- New `UnitModel.pieceWorldTransform` / `pieceWorldPosition` in [UnitModel+Bounds.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitModel+Bounds.swift) walk the ancestor chain multiplying local transform matrices (same math as the renderer) so the IK getters observe the cumulative effect of every `turn ... now` issued earlier in the same tick.
+
+## COB stack arg order ([SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift))
+
+With `Stack.pop(count: n)` fixed to return items in push order, the stale `.reversed()` in `getFunctionResult`, `startScript`, and `callScript` inverted the param slots. For `get(PIECE_XZ, piece, 0, 0, 0)` the piece index was ending up in `params[3]` while `params[0]` carried a trailing zero, so every `PIECE_XZ` call resolved to piece zero and the bisection angles matched for every leg. Removing `.reversed()` lines up with the decompiler's convention: `params[0]` is the first-written argument.
+
 ## COB script IK getters ([SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift))
 
 `getUnitValue` (opcode `0x10042000`) and `getFunctionResult` (opcode `0x10043000`) were both stubbed to push `0` regardless of what the COB script asked for. TA spider-class units calculate leg rotations at `Create` time via:
