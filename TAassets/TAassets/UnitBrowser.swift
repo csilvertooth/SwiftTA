@@ -74,16 +74,31 @@ class UnitBrowserViewController: NSViewController, ContentViewController {
     }
     
     final func buildpic(for unitName: String) -> NSImage? {
-        if let file = try? shared.filesystem.openFile(at: "unitpics/" + unitName + ".PCX") {
-            return try? NSImage(pcxContentsOf: file)
+        let fs = shared.filesystem
+
+        if let unitpics = fs.root[directory: "unitpics"] {
+            if let file = unitpics[file: unitName + ".pcx"],
+               let handle = try? fs.openFile(file),
+               let image = try? NSImage(pcxContentsOf: handle) {
+                return image
+            }
+            for ext in ["bmp", "png", "jpg", "jpeg", "tga"] {
+                if let file = unitpics[file: unitName + "." + ext],
+                   let handle = try? fs.openFile(file) {
+                    let data = handle.readDataToEndOfFile()
+                    if let image = NSImage(data: data) { return image }
+                }
+            }
         }
-        else if let file = try? shared.filesystem.openFile(at: "anims/buildpic/" + unitName + ".jpg") {
-            let data = file.readDataToEndOfFile()
-            return NSImage(data: data)
+
+        for ext in ["jpg", "jpeg", "png", "bmp"] {
+            if let file = try? fs.openFile(at: "anims/buildpic/" + unitName + "." + ext) {
+                let data = file.readDataToEndOfFile()
+                if let image = NSImage(data: data) { return image }
+            }
         }
-        else {
-            return nil
-        }
+
+        return nil
     }
     
 }
