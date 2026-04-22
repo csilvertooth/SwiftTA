@@ -63,13 +63,20 @@ class UnitBrowserViewController: NSViewController, ContentViewController {
         let rootNames = shared.filesystem.root.items.map { $0.name }.sorted()
         print("Filesystem root contains \(rootNames.count) entries: \(rootNames.prefix(40).joined(separator: ", "))\(rootNames.count > 40 ? "…" : "")")
 
-        var fbiFiles = (shared.filesystem.root[directory: "units"] ?? FileSystem.Directory())
-            .allFiles(withExtension: "fbi")
-
-        if fbiFiles.isEmpty {
-            print("No FBIs under units/ — scanning entire filesystem")
-            fbiFiles = shared.filesystem.root.allFiles(withExtension: "fbi")
+        var perDir: [(String, Int)] = []
+        for item in shared.filesystem.root.items {
+            if case .directory(let d) = item {
+                let count = d.allFiles(withExtension: "fbi").count
+                if count > 0 { perDir.append((d.name, count)) }
+            }
         }
+        perDir.sort { $0.1 > $1.1 }
+        if !perDir.isEmpty {
+            let summary = perDir.map { "\($0.0)=\($0.1)" }.joined(separator: " ")
+            print("FBI counts per top-level dir: \(summary)")
+        }
+
+        let fbiFiles = shared.filesystem.root.allFiles(withExtension: "fbi")
 
         var seenNames = Set<String>()
         let units = fbiFiles
@@ -79,7 +86,7 @@ class UnitBrowserViewController: NSViewController, ContentViewController {
             .compactMap { try? UnitInfo(contentsOf: $0) }
         self.units = units
         let end = Date()
-        print("UnitInfo list load time: \(end.timeIntervalSince(begin)) seconds; units found: \(units.count)")
+        print("UnitInfo list load time: \(end.timeIntervalSince(begin)) seconds; units found: \(units.count) (from \(fbiFiles.count) FBI files)")
 
         textures = ModelTexturePack(loadFrom: shared.filesystem)
     }
@@ -87,14 +94,19 @@ class UnitBrowserViewController: NSViewController, ContentViewController {
     final func buildpic(for unitName: String) -> NSImage? {
         let fs = shared.filesystem
 
-        if let unitpics = fs.root[directory: "unitpics"] {
-            if let file = unitpics[file: unitName + ".pcx"],
+        let pictureDirs = fs.root.items.compactMap { item -> FileSystem.Directory? in
+            guard case .directory(let d) = item else { return nil }
+            return d.name.lowercased().hasPrefix("unitpic") ? d : nil
+        }
+
+        for dir in pictureDirs {
+            if let file = dir[file: unitName + ".pcx"],
                let handle = try? fs.openFile(file),
                let image = try? NSImage(pcxContentsOf: handle) {
                 return image
             }
             for ext in ["bmp", "png", "jpg", "jpeg", "tga"] {
-                if let file = unitpics[file: unitName + "." + ext],
+                if let file = dir[file: unitName + "." + ext],
                    let handle = try? fs.openFile(file) {
                     let data = handle.readDataToEndOfFile()
                     if let image = NSImage(data: data) { return image }

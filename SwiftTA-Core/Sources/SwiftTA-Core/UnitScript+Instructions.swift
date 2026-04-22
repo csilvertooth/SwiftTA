@@ -63,7 +63,7 @@ let Instructions: [UnitScript.Opcode: Instruction] = [
     .add: operatorFunc(operation: &+),
     .subtract: operatorFunc(operation: &-),
     .multiply: operatorFunc(operation: &*),
-    .divide: operatorFunc(operation: /),
+    .divide: operatorFunc(operation: { lhs, rhs in rhs == 0 ? 0 : lhs / rhs }),
     .bitwiseAnd: operatorFunc(operation: &),
     .bitwiseOr: operatorFunc(operation: |),
     .unknown1: unknownOperator,

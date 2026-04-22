@@ -118,3 +118,90 @@ If the goal is to evolve TAassets into a focused 3DO/asset inspector + exporter:
 - [x] CCX/GP3/GPF support confirmed via shared `HpiItem.loadFromArchive` + `weightedArchiveExtensions`
 - [x] Extraction locations identified; `extractAll` stub completed
 - [x] 3DO / model viewer extension points identified
+
+---
+
+# Feature work
+
+Everything below was added on top of the bootstrap. All features live on the `chore/swiftta-apple-silicon-bootstrap` branch.
+
+## Piece hierarchy inspector
+
+Both apps surface a live outline of model pieces beside the 3D preview.
+
+- **TAassets**: [`PieceHierarchyView`](TAassets/TAassets/PieceHierarchyView.swift) sits below the unit's 3D preview inside `UnitDetailViewController`.
+- **HPIView**: same view is embedded in a vertical `NSSplitView` with the 3D view; drag the divider to resize. [`HPIView/PieceHierarchyView.swift`](HPIView/HPIView/PieceHierarchyView.swift), layout in [`ModelView.swift`](HPIView/HPIView/ModelView.swift).
+
+Columns:
+- **Piece** — the string baked into each `TA_3DO_OBJECT` (`base`, `pad`, `nano`, `turret`, `flare`, `explode1`, …). Tree structure follows the 3DO parent/child pointers.
+- **Prims / Verts / Children** — primitive count for the piece, total vertex indices across its primitives, number of direct children.
+- **Script Refs** — each COB module that references this piece plus the set of opcodes used (`Create[dontShade]`, `Activate[turnPieceWithSpeed]`, …). Extracted statically by [`UnitScript.pieceReferences()`](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+PieceReferences.swift).
+
+Selecting a row tints the piece in gold inside the 3D view. Implemented by a new `highlightedPieceIndex` uniform and a flat interpolant in both renderers' shaders:
+- TAassets: [`UnitViewRenderer+MetalShaders.metal`](TAassets/TAassets/UnitViewRenderer+MetalShaders.metal) + [`UnitViewRenderer+MetalShaderTypes.h`](TAassets/TAassets/UnitViewRenderer+MetalShaderTypes.h) (the uniform is already in a `pieces[40]` buffer, so the index is straightforward).
+- HPIView: [`ModelViewRenderer+MetalShaders.metal`](HPIView/HPIView/ModelViewRenderer+MetalShaders.metal) + [`ModelViewRenderer+MetalShaderTypes.h`](HPIView/HPIView/ModelViewRenderer+MetalShaderTypes.h). Required adding an `int pieceIndex` attribute to `ModelMetalRenderer_ModelVertex`; [`ModelViewRenderer+Metal.swift`](HPIView/HPIView/ModelViewRenderer+Metal.swift) writes it in `append(_:_:_:…)`/`appendLine`.
+
+## Camera controls
+
+Same bindings in both apps, applied to either the unit view (TAassets) or 3DO preview (HPIView):
+
+| Input | Effect |
+|---|---|
+| Two-finger / mouse scroll | Zoom |
+| Trackpad pinch | Zoom |
+| `=` / `+` | Zoom in by 1.25× |
+| `-` | Zoom out by 1.25× |
+| `0` | Reset zoom and camera rotation |
+| Mouse drag (no modifier) | Yaw (Z) |
+| Shift + drag | Pitch (X) — consumed via a new `rotateX` step in the view matrix |
+| Option + drag | Roll (Y) — state exists; wiring trivial |
+
+Zoom scales the orthographic scene width. Each app maintains its own base width: TAassets derives it from the unit's `footprint.width`; HPIView uses [`UnitModel.maxWorldExtent`](SwiftTA-Core/Sources/SwiftTA-Core/UnitModel+Bounds.swift) so large buildings fit on load. `viewportChanged` re-fits on window resize.
+
+## Playback controls (TAassets)
+
+[`PlaybackControlsView`](TAassets/TAassets/PlaybackControlsView.swift) sits as a thin toolbar between the 3D preview and the piece outline.
+
+- **Pause / Play** — toggles `viewState.playbackSpeed` between 0 and the last nonzero speed. `UnitViewController.updateAnimatingState` short-circuits script execution while paused.
+- **Step** — pauses, then calls `stepOnce(by:)` to advance exactly 1/30 s of script time. Useful for inching through a build yard opening.
+- **Speed slider (0×–2×)** — scales deltaTime each frame.
+- **Run script…** — pull-down listing every module in the unit's COB (`Create`, `Activate`, `QueryPrimary`, etc.). Selecting one invokes `scriptContext.startScript(name)` so building internals can be observed on demand.
+
+## Mod support
+
+[`FileSystem`](SwiftTA-Core/Sources/SwiftTA-Core/Filesystem.swift) gained a `modDirectory:` parameter. When set, mod archives overlay the base with `overwrite: true`, so mod files replace vanilla when names collide and mod-only files are additive. `weightedArchiveExtensions` order (`ufo, gp3, ccx, gpf, hpi`) controls the load order inside each directory so later archives win.
+
+### Mods menu
+
+Dynamic menu in the menubar (installed from [`AppDelegate`](TAassets/TAassets/AppDelegate.swift)). Items populate lazily from `<baseURL>/mods/*/` at `menuWillOpen`. First item reads `Base only: <folder>` to reflect the actual base, not a generic "vanilla" label. The action routes through `AppDelegate.activateModFromMenu(_:)` → `TaassetsDocument.activateMod(_:)` so dispatch is reliable regardless of first-responder state.
+
+### Mod folder auto-detect
+
+[`TaassetsDocument.read(from:)`](TAassets/TAassets/TaassetsDocument.swift) checks if the opened folder's parent is named `mods` or `mod`. If so, and the grandparent contains any recognized archive extension, it loads the grandparent as the base with the opened folder as the active mod. This means:
+- `File → Open → ~/tafiles` → base only (same as before).
+- `File → Open → ~/tafiles/mods/taesc` → `base: tafiles + mod: taesc` automatically, so the mod gets its textures and palettes from the vanilla base without the user stitching it together.
+
+### Standalone-folder tolerances
+
+For users who open a mod folder that has no vanilla parent:
+- `gamedata/sidedata.tdf` is optional — missing file just logs and uses empty sides.
+- [`UnitDetailViewController.resolvePalette`](TAassets/TAassets/UnitBrowser.swift) chains `texturePalette → standardTaPalette → Palette()` so the 3D view still paints something.
+- [`Palette.init()`](SwiftTA-Core/Sources/SwiftTA-Core/Palette.swift) now allocates 256 entries instead of 255 (a latent off-by-one that only showed up once the fallback was exercised).
+
+### Unit discovery
+
+[`UnitBrowserViewController.viewDidLoad`](TAassets/TAassets/UnitBrowser.swift) walks the entire merged filesystem for `*.fbi` (not just `units/`). TAESC-family archives store their content in `unitsE/` alongside the vanilla `units/`; the broader walk catches them. Duplicates are deduped by lowercased base name so overridden vanilla units appear once. Debug prints at load time expose the root entries and per-directory FBI counts so mod troubleshooting is visible.
+
+[`UnitBrowserViewController.buildpic(for:)`](TAassets/TAassets/UnitBrowser.swift) iterates every root directory whose name starts with `unitpic` (covering `unitpics/`, `unitpicsE/`, `unitpicE/`) and tries PCX, BMP, PNG, JPG, JPEG, TGA before falling back to `anims/buildpic/*.{jpg,jpeg,png,bmp}`.
+
+### COB divide-by-zero hardening
+
+[`UnitScript+Instructions.swift`](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift) — the `.divide` opcode used Swift's `/` which traps on division by zero. Some mod-shipped COB scripts (confirmed in TAESC) hit this when the VM evaluates side effects on large buildings. Replaced with a guarded closure that returns 0 when `rhs == 0`.
+
+## Gaps / future work
+
+- HPIView doesn't have mod awareness; it's still a single-archive browser. Probably fine since the app's job is file introspection, not mod switching.
+- The OpenGL renderers do not apply the new highlight/pitch; TAassets' default Metal path covers both, and macOS 26 deprecates Apple's OpenGL anyway.
+- The `unitsE`, `gamedatE`, `guiE` duplicate root directories from the TAESC archives are still not understood — they look like HPI directory-name parsing corruption rather than intentional English-locale variants. The broader unit/pic scans work around it, but the HPI parser may still be reading one byte past the null terminator in some cases.
+- No per-unit texture variant handling for team colors. Units render with side 1's palette only.
+- Extraction UI only exists in HPIView. TAassets could carry its own since `FileSystem.File.archiveURL` already tells it which container each file came from.

@@ -15,6 +15,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     override init() {
         super.init()
+        setbuf(stdout, nil)
+        setbuf(stderr, nil)
         let _ = TaassetsDocumentController.shared
     }
 
@@ -50,9 +52,9 @@ extension AppDelegate: NSMenuDelegate {
         let baseName = document.baseURL?.lastPathComponent ?? "Base"
         let baseTitle = "Base only: \(baseName)"
         let baseItem = NSMenuItem(title: baseTitle,
-                                  action: #selector(TaassetsDocument.activateMod(_:)),
+                                  action: #selector(activateModFromMenu(_:)),
                                   keyEquivalent: "")
-        baseItem.target = document
+        baseItem.target = self
         baseItem.representedObject = nil
         baseItem.state = (document.currentModURL == nil) ? .on : .off
         menu.addItem(baseItem)
@@ -69,13 +71,22 @@ extension AppDelegate: NSMenuDelegate {
         menu.addItem(NSMenuItem.separator())
         for modURL in mods {
             let item = NSMenuItem(title: modURL.lastPathComponent,
-                                  action: #selector(TaassetsDocument.activateMod(_:)),
+                                  action: #selector(activateModFromMenu(_:)),
                                   keyEquivalent: "")
-            item.target = document
+            item.target = self
             item.representedObject = modURL
             item.state = (document.currentModURL == modURL) ? .on : .off
             menu.addItem(item)
         }
+    }
+
+    @IBAction func activateModFromMenu(_ sender: NSMenuItem) {
+        Swift.print(">>> activateModFromMenu delegate fired; represented=\((sender.representedObject as? URL)?.lastPathComponent ?? "base only")")
+        guard let doc = NSDocumentController.shared.currentDocument as? TaassetsDocument else {
+            Swift.print("    no current TaassetsDocument")
+            return
+        }
+        doc.activateMod(sender)
     }
 
 }
