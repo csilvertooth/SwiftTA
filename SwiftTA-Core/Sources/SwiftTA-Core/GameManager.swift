@@ -137,7 +137,7 @@ public class GameManager: ScriptMachine {
         //guard let type = loadedState.units[unit.type] else { continue }
         
         var updated = unit
-        updated.scriptContext.run(for: updated.modelInstance, on: self)
+        updated.scriptContext.run(for: &updated.modelInstance, on: self)
         updated.scriptContext.applyAnimations(to: &updated.modelInstance, for: updateRate)
         updated.applyMovement(loadedState.map)
         objects[id] = .unit(updated)

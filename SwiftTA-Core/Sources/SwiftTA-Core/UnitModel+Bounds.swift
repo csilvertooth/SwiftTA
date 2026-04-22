@@ -4,6 +4,60 @@
 //
 
 import Foundation
+import simd
+
+public extension UnitModel {
+
+    /// World-space position of a piece with the current animation state applied.
+    /// Walks the piece's ancestor chain from the root down, multiplying each
+    /// piece's local translation/rotation matrix so Create-time IK queries like
+    /// `get PIECE_XZ(tip)` see the result of intermediate `turn ... now` calls.
+    func pieceWorldPosition(_ index: Pieces.Index, instance: UnitModel.Instance) -> Vertex3f {
+        let t = pieceWorldTransform(index, instance: instance)
+        return Vertex3f(x: t.columns.3.x, y: t.columns.3.y, z: t.columns.3.z)
+    }
+
+    func pieceWorldTransform(_ index: Pieces.Index, instance: UnitModel.Instance) -> matrix_float4x4 {
+        var transform = matrix_float4x4.identity
+        if index < parents.count {
+            for ancestor in parents[index] {
+                transform = transform * pieceLocalTransform(ancestor, instance: instance)
+            }
+        }
+        transform = transform * pieceLocalTransform(index, instance: instance)
+        return transform
+    }
+
+    private func pieceLocalTransform(_ index: Pieces.Index, instance: UnitModel.Instance) -> matrix_float4x4 {
+        let piece = pieces[index]
+        let anim = index < instance.pieces.count ? instance.pieces[index] : PieceState()
+        let offset = piece.offset
+        let move = anim.move
+        let turn = anim.turn
+        let rad = GameFloat.pi / 180
+        let sx = Darwin.sin(turn.x * rad), cx = Darwin.cos(turn.x * rad)
+        let sy = Darwin.sin(turn.y * rad), cy = Darwin.cos(turn.y * rad)
+        let sz = Darwin.sin(turn.z * rad), cz = Darwin.cos(turn.z * rad)
+        return matrix_float4x4(columns: (
+            vector_float4(cy * cz,
+                          (sy * cx) + (sx * cy * sz),
+                          (sx * sy) - (cx * cy * sz),
+                          0),
+            vector_float4(-sy * cz,
+                          (cx * cy) - (sx * sy * sz),
+                          (sx * cy) + (cx * sy * sz),
+                          0),
+            vector_float4(sz,
+                          -sx * cz,
+                          cx * cz,
+                          0),
+            vector_float4(offset.x - move.x,
+                          offset.y - move.z,
+                          offset.z + move.y,
+                          1)
+        ))
+    }
+}
 
 public extension UnitModel {
 

@@ -81,9 +81,13 @@ public protocol ScriptMachine {
 }
 
 public extension UnitScript.Context {
-    
-    func run<Machine: ScriptMachine>(for instance: UnitModel.Instance, on machine: Machine) {
-        threads.forEach { $0.run(with: self, for: instance, on: machine) }
+
+    func run<Machine: ScriptMachine>(for instance: inout UnitModel.Instance, on machine: Machine) {
+        withUnsafeMutablePointer(to: &instance) { pointer in
+            for thread in threads {
+                thread.run(with: self, for: pointer, on: machine)
+            }
+        }
         threads = threads.filter { !$0.isFinished }
     }
     
@@ -219,7 +223,7 @@ public extension UnitScript.Thread {
         return (signalMask & mask) != 0
     }
     
-    func run<Machine: ScriptMachine>(with context: UnitScript.Context, for instance: UnitModel.Instance, on machine: Machine) {
+    func run<Machine: ScriptMachine>(with context: UnitScript.Context, for instance: UnsafeMutablePointer<UnitModel.Instance>, on machine: Machine) {
         let execution = ScriptExecutionContext(process: context, thread: self, model: instance, machine: machine)
         do {
             runLoop: while true {

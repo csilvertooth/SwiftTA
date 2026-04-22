@@ -99,7 +99,7 @@ class UnitViewController: NSViewController {
 
     func stepOnce(by duration: Double = 1.0 / 30.0) {
         guard var unit = unit else { return }
-        unit.scriptContext.run(for: unit.modelInstance, on: self)
+        unit.scriptContext.run(for: &unit.modelInstance, on: self)
         unit.scriptContext.applyAnimations(to: &unit.modelInstance, for: GameFloat(duration))
         viewState.modelInstance = unit.modelInstance
         self.unit = unit
@@ -212,7 +212,7 @@ extension UnitViewController: UnitViewStateProvider {
             viewState.speed = 0
         }
 
-        unit.scriptContext.run(for: unit.modelInstance, on: self)
+        unit.scriptContext.run(for: &unit.modelInstance, on: self)
         unit.scriptContext.applyAnimations(to: &unit.modelInstance, for: GameFloat(scaledDelta))
 
         if viewState.isMoving {

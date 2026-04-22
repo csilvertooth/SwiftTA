@@ -12,7 +12,10 @@ import Foundation
 struct ScriptExecutionContext {
     var process: UnitScript.Context
     var thread: UnitScript.Thread
-    var model: UnitModel.Instance
+    /// The instance is shared mutably across all threads within a single run()
+    /// tick so that `turn piece now` / `move piece now` take effect immediately
+    /// and later reads in the same script evaluation see the updated state.
+    var model: UnsafeMutablePointer<UnitModel.Instance>
     var machine: ScriptMachine
 }
 
@@ -115,7 +118,7 @@ private func movePieceWithSpeed(execution: ScriptExecutionContext) throws {
     let destination = try execution.thread.stack.pop()
     let speed = try execution.thread.stack.pop()
     
-    let translation = execution.model.beginTranslation(
+    let translation = execution.model.pointee.beginTranslation(
         for: try execution.process.pieceIndex(at: piece),
         along: try execution.thread.makeAxis(for: axis),
         to: destination.linearValue,
@@ -145,7 +148,7 @@ private func turnPieceWithSpeed(execution: ScriptExecutionContext) throws {
     let destination = try execution.thread.stack.pop()
     let speed = try execution.thread.stack.pop()
     
-    let rotation = execution.model.beginRotation(
+    let rotation = execution.model.pointee.beginRotation(
         for: try execution.process.pieceIndex(at: piece),
         around: try execution.thread.makeAxis(for: axis),
         to: destination.angularValue,
@@ -175,7 +178,7 @@ private func startSpin(execution: ScriptExecutionContext) throws {
     let speed = try execution.thread.stack.pop()
     let acceleration = try execution.thread.stack.pop()
     
-    let spin = execution.model.beginSpin(
+    let spin = execution.model.pointee.beginSpin(
         for: try execution.process.pieceIndex(at: piece),
         around: try execution.thread.makeAxis(for: axis),
         accelerating: acceleration.angularValue,
@@ -295,17 +298,20 @@ private func dontShadow(execution: ScriptExecutionContext) throws {
  
  */
 private func movePieceNow(execution: ScriptExecutionContext) throws {
-    
+
     let piece = execution.immediate(at: 1)
     let axis = execution.immediate(at: 2)
     let destination = try execution.thread.stack.pop()
-    
-    execution.process.animations.append(.setPosition(UnitScript.SetPosition(
-        piece: try execution.process.pieceIndex(at: piece),
-        axis: try execution.thread.makeAxis(for: axis),
-        target: destination.linearValue
-    )))
-    
+
+    let pieceIndex = try execution.process.pieceIndex(at: piece)
+    let resolvedAxis = try execution.thread.makeAxis(for: axis)
+    let target = destination.linearValue
+    switch resolvedAxis {
+    case .x: execution.model.pointee.pieces[pieceIndex].move.x = target
+    case .y: execution.model.pointee.pieces[pieceIndex].move.y = target
+    case .z: execution.model.pointee.pieces[pieceIndex].move.z = target
+    }
+
     //print("[\(execution.thread.id)] Move \(piece) along \(axis) to \(destination)")
     execution.thread.instructionPointer += 3
 }
@@ -322,17 +328,20 @@ private func movePieceNow(execution: ScriptExecutionContext) throws {
  
  */
 private func turnPieceNow(execution: ScriptExecutionContext) throws {
-    
+
     let piece = execution.immediate(at: 1)
     let axis = execution.immediate(at: 2)
     let destination = try execution.thread.stack.pop()
-    
-    execution.process.animations.append(.setAngle(UnitScript.SetAngle(
-        piece: try execution.process.pieceIndex(at: piece),
-        axis: try execution.thread.makeAxis(for: axis),
-        target: destination.angularValue
-    )))
-    
+
+    let pieceIndex = try execution.process.pieceIndex(at: piece)
+    let resolvedAxis = try execution.thread.makeAxis(for: axis)
+    let target = destination.angularValue
+    switch resolvedAxis {
+    case .x: execution.model.pointee.pieces[pieceIndex].turn.x = target
+    case .y: execution.model.pointee.pieces[pieceIndex].turn.y = target
+    case .z: execution.model.pointee.pieces[pieceIndex].turn.z = target
+    }
+
     //print("[\(execution.thread.id)] Turn \(piece) around \(axis) to \(destination)")
     execution.thread.instructionPointer += 3
 }
@@ -705,14 +714,14 @@ private func getFunctionResult(execution: ScriptExecutionContext) throws {
     if let uv = UnitScript.UnitValue(rawValue: what) {
         switch uv {
         case .pieceXZ:
-            if let offset = pieceStaticOffset(scriptPiece: params[0], execution: execution) {
-                // UnitModel remaps 3DO (x, y, z) → SIMD (x, z, y) so offset.y is TA's Z
-                // (horizontal depth) and offset.z is TA's Y (vertical height).
-                result = packXZ(x: offset.x, z: offset.y)
+            if let pos = pieceWorldPosition(scriptPiece: params[0], execution: execution) {
+                // UnitModel remaps 3DO (x, y, z) → SIMD (x, z, y) so pos.y is TA's Z
+                // (horizontal depth) and pos.z is TA's Y (vertical height).
+                result = packXZ(x: pos.x, z: pos.y)
             }
         case .pieceY:
-            if let offset = pieceStaticOffset(scriptPiece: params[0], execution: execution) {
-                result = _StackValue(offset.z)
+            if let pos = pieceWorldPosition(scriptPiece: params[0], execution: execution) {
+                result = _StackValue(pos.z)
             }
         case .xzAtan:
             let (x, z) = unpackXZ(params[0])
@@ -734,11 +743,11 @@ private func getFunctionResult(execution: ScriptExecutionContext) throws {
     execution.thread.instructionPointer += 1
 }
 
-private func pieceStaticOffset(scriptPiece: UnitScript.CodeUnit, execution: ScriptExecutionContext) -> Vertex3f? {
+private func pieceWorldPosition(scriptPiece: UnitScript.CodeUnit, execution: ScriptExecutionContext) -> Vertex3f? {
     guard let modelIndex = try? execution.process.pieceIndex(at: scriptPiece) else { return nil }
     let model = execution.process.model
-    guard modelIndex < model.parents.count else { return nil }
-    return model.pieceStaticOffset(modelIndex)
+    guard modelIndex < model.pieces.count else { return nil }
+    return model.pieceWorldPosition(modelIndex, instance: execution.model.pointee)
 }
 
 private func packXZ(x: GameFloat, z: GameFloat) -> UnitScript.CodeUnit {
