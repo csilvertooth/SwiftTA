@@ -244,3 +244,21 @@ New tab wired to the Weapons sidebar button. Walks every top-level directory who
 ## COB VM hardening ([SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift))
 
 Some mod scripts (confirmed in TAESC) invoke the divide opcode with a zero right-hand side. Swift's `/` traps on integer division by zero and crashed the app the moment a unit was selected. Replaced the `.divide` entry in the opcode dispatch dictionary with a guarded closure that returns `0` on zero divisor so the VM keeps running.
+
+## Piece-count capacity for complex mod units
+
+TAassets' Metal uniform struct carried `pieces[40]` ([TAassets/TAassets/UnitViewRenderer+MetalShaderTypes.h](TAassets/TAassets/UnitViewRenderer+MetalShaderTypes.h)), and the renderer's per-frame copy wrote `transformations.count` matrices into that slot. Mod units with more than 40 pieces (TAESC's `CORMKL` spider, for example) overflowed the uniform buffer, clobbered `highlightedPieceIndex`, and left the shader reading stale/zero matrices for the overflow pieces — so legs, rotor arms, and other appendages rendered collapsed on the base or disappeared entirely.
+
+- Uniform now carries `pieces[128]`.
+- [`BasicMetalUnitViewRenderer`](TAassets/TAassets/UnitViewRenderer+Metal.swift) caps the per-frame copy to `maxPieceMatrices = 128` and logs a one-shot warning when a unit exceeds the cap, so future over-budget units are at least visible and traceable.
+
+## Unit-view auto-fit
+
+[`UnitViewController.computeSceneSize`](TAassets/TAassets/UnitView.swift) used to pick a scene width of `max(footprintWidth, extent * 2.3)` and let scene height fall out of `sceneWidth * aspectRatio`. A wide-but-short viewport therefore cropped tall mod models. The new computation fits both axes:
+
+```swift
+let modelDiameter = extent * 2.4
+let sceneWidthNeeded = max(modelDiameter, modelDiameter / aspectRatio)
+```
+
+So `sceneHeight = sceneWidthNeeded * aspectRatio >= modelDiameter` is guaranteed regardless of the viewport aspect. On load the full unit is always visible before the user zooms in.
