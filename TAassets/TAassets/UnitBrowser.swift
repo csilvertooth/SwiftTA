@@ -59,9 +59,20 @@ class UnitBrowserViewController: NSViewController, ContentViewController {
     
     override func viewDidLoad() {
         let begin = Date()
-        let unitsDirectory = shared.filesystem.root[directory: "units"] ?? FileSystem.Directory()
+
+        let rootNames = shared.filesystem.root.items.map { $0.name }.sorted()
+        print("Filesystem root contains \(rootNames.count) entries: \(rootNames.prefix(40).joined(separator: ", "))\(rootNames.count > 40 ? "…" : "")")
+
+        var fbiFiles = (shared.filesystem.root[directory: "units"] ?? FileSystem.Directory())
+            .allFiles(withExtension: "fbi")
+
+        if fbiFiles.isEmpty {
+            print("No FBIs under units/ — scanning entire filesystem")
+            fbiFiles = shared.filesystem.root.allFiles(withExtension: "fbi")
+        }
+
         var seenNames = Set<String>()
-        let units = unitsDirectory.allFiles(withExtension: "fbi")
+        let units = fbiFiles
             .sorted { FileSystem.sortNames($0.name, $1.name) }
             .filter { seenNames.insert($0.baseName.lowercased()).inserted }
             .compactMap { try? shared.filesystem.openFile($0) }

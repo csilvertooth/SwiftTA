@@ -47,18 +47,20 @@ extension AppDelegate: NSMenuDelegate {
             return
         }
 
-        let vanilla = NSMenuItem(title: "Vanilla (no mod)",
-                                 action: #selector(TaassetsDocument.activateMod(_:)),
-                                 keyEquivalent: "")
-        vanilla.target = document
-        vanilla.representedObject = nil
-        vanilla.state = (document.currentModURL == nil) ? .on : .off
-        menu.addItem(vanilla)
+        let baseName = document.baseURL?.lastPathComponent ?? "Base"
+        let baseTitle = "Base only: \(baseName)"
+        let baseItem = NSMenuItem(title: baseTitle,
+                                  action: #selector(TaassetsDocument.activateMod(_:)),
+                                  keyEquivalent: "")
+        baseItem.target = document
+        baseItem.representedObject = nil
+        baseItem.state = (document.currentModURL == nil) ? .on : .off
+        menu.addItem(baseItem)
 
         let mods = document.availableMods
         if mods.isEmpty {
             menu.addItem(NSMenuItem.separator())
-            let none = NSMenuItem(title: "No mods found in <base>/mods",
+            let none = NSMenuItem(title: "No mods found in \(baseName)/mods",
                                   action: nil, keyEquivalent: "")
             none.isEnabled = false
             menu.addItem(none)
