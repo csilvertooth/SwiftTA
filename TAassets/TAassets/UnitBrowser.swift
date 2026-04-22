@@ -59,31 +59,69 @@ class UnitBrowserViewController: NSViewController, ContentViewController {
     
     override func viewDidLoad() {
         let begin = Date()
-        let unitsDirectory = shared.filesystem.root[directory: "units"] ?? FileSystem.Directory()
-        let units = unitsDirectory.items
-            .compactMap { $0.asFile() }
-            .filter { $0.hasExtension("fbi") }
+
+        let rootNames = shared.filesystem.root.items.map { $0.name }.sorted()
+        print("Filesystem root contains \(rootNames.count) entries: \(rootNames.prefix(40).joined(separator: ", "))\(rootNames.count > 40 ? "…" : "")")
+
+        var perDir: [(String, Int)] = []
+        for item in shared.filesystem.root.items {
+            if case .directory(let d) = item {
+                let count = d.allFiles(withExtension: "fbi").count
+                if count > 0 { perDir.append((d.name, count)) }
+            }
+        }
+        perDir.sort { $0.1 > $1.1 }
+        if !perDir.isEmpty {
+            let summary = perDir.map { "\($0.0)=\($0.1)" }.joined(separator: " ")
+            print("FBI counts per top-level dir: \(summary)")
+        }
+
+        let fbiFiles = shared.filesystem.root.allFiles(withExtension: "fbi")
+
+        var seenNames = Set<String>()
+        let units = fbiFiles
             .sorted { FileSystem.sortNames($0.name, $1.name) }
+            .filter { seenNames.insert($0.baseName.lowercased()).inserted }
             .compactMap { try? shared.filesystem.openFile($0) }
             .compactMap { try? UnitInfo(contentsOf: $0) }
         self.units = units
         let end = Date()
-        print("UnitInfo list load time: \(end.timeIntervalSince(begin)) seconds")
-        
+        print("UnitInfo list load time: \(end.timeIntervalSince(begin)) seconds; units found: \(units.count) (from \(fbiFiles.count) FBI files)")
+
         textures = ModelTexturePack(loadFrom: shared.filesystem)
     }
     
     final func buildpic(for unitName: String) -> NSImage? {
-        if let file = try? shared.filesystem.openFile(at: "unitpics/" + unitName + ".PCX") {
-            return try? NSImage(pcxContentsOf: file)
+        let fs = shared.filesystem
+
+        let pictureDirs = fs.root.items.compactMap { item -> FileSystem.Directory? in
+            guard case .directory(let d) = item else { return nil }
+            return d.name.lowercased().hasPrefix("unitpic") ? d : nil
         }
-        else if let file = try? shared.filesystem.openFile(at: "anims/buildpic/" + unitName + ".jpg") {
-            let data = file.readDataToEndOfFile()
-            return NSImage(data: data)
+
+        for dir in pictureDirs {
+            if let file = dir[file: unitName + ".pcx"],
+               let handle = try? fs.openFile(file),
+               let image = try? NSImage(pcxContentsOf: handle) {
+                return image
+            }
+            for ext in ["bmp", "png", "jpg", "jpeg", "tga"] {
+                if let file = dir[file: unitName + "." + ext],
+                   let handle = try? fs.openFile(file) {
+                    let data = handle.readDataToEndOfFile()
+                    if let image = NSImage(data: data) { return image }
+                }
+            }
         }
-        else {
-            return nil
+
+        for ext in ["jpg", "jpeg", "png", "bmp"] {
+            if let file = try? fs.openFile(at: "anims/buildpic/" + unitName + "." + ext) {
+                let data = file.readDataToEndOfFile()
+                if let image = NSImage(data: data) { return image }
+            }
         }
+
+        return nil
     }
     
 }
@@ -126,7 +164,7 @@ extension UnitBrowserViewController: NSTableViewDelegate {
             if !isShowingDetail {
                 let controller = detailViewController
                 controller.view.frame = detailViewContainer.bounds
-                controller.view.autoresizingMask = [.width, .width]
+                controller.view.autoresizingMask = [.width, .height]
                 addChild(controller)
                 detailViewContainer.addSubview(controller.view)
                 isShowingDetail = true
@@ -228,11 +266,27 @@ extension UnitBrowserSharedState {
     }
 }
 
-class UnitDetailViewController: NSViewController {
-    
+class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate, PlaybackControlsViewDelegate {
+
     var shared = UnitBrowserSharedState.empty
     let unitView = UnitViewController()
-    
+    let pieceView = PieceHierarchyView(frame: .zero)
+    let playbackControls = PlaybackControlsView(frame: .zero)
+
+    func pieceHierarchyView(_ view: PieceHierarchyView, didSelectPieceAt index: UnitModel.Pieces.Index?) {
+        unitView.setHighlightedPiece(index)
+    }
+
+    func playbackControls(_ view: PlaybackControlsView, didChangeSpeed speed: Float) {
+        unitView.setPlaybackSpeed(speed)
+    }
+    func playbackControlsDidRequestStep(_ view: PlaybackControlsView) {
+        unitView.stepOnce()
+    }
+    func playbackControls(_ view: PlaybackControlsView, didChooseScript name: String) {
+        unitView.startScript(name)
+    }
+
     func load(_ unit: UnitInfo) throws {
         unitTitle = unit.object
         let modelFile = try shared.filesystem.openFile(at: "objects3d/" + unit.object + ".3DO")
@@ -240,14 +294,28 @@ class UnitDetailViewController: NSViewController {
         let scriptFile = try shared.filesystem.openFile(at: "scripts/" + unit.object + ".COB")
         let script = try UnitScript(contentsOf: scriptFile)
         let atlas = UnitTextureAtlas(for: model.textures, from: shared.textures)
-        let palette = try Palette.texturePalette(for: unit, in: shared.sides, from: shared.filesystem)
+        let palette = resolvePalette(for: unit)
         try unitView.load(unit, model, script, atlas, shared.filesystem, palette)
-        
+        pieceView.apply(model: model, script: script)
+        playbackControls.reset(scriptFunctions: unitView.availableScriptFunctions)
+
         //try tempSaveAtlasToFile(atlas, palette)
     }
-    
+
     func clear() {
         unitView.clear()
+        pieceView.clear()
+        playbackControls.reset(scriptFunctions: [])
+    }
+
+    private func resolvePalette(for unit: UnitInfo) -> Palette {
+        if let p = try? Palette.texturePalette(for: unit, in: shared.sides, from: shared.filesystem) {
+            return p
+        }
+        if let p = try? Palette.standardTaPalette(from: shared.filesystem) {
+            return p.applyingChromaKeys(Palette.textureTransparencies)
+        }
+        return Palette()
     }
     
     private func tempSaveAtlasToFile(_ atlas: UnitTextureAtlas, _ palette: Palette) throws {
@@ -286,10 +354,11 @@ class UnitDetailViewController: NSViewController {
     }
     
     private class ContainerView: NSView {
-        
+
         unowned let titleLabel: NSTextField
         let emptyContentView: NSView
-        
+        let pieceAccessory: NSView
+
         weak var contentView: NSView? {
             didSet {
                 guard contentView != oldValue else { return }
@@ -306,51 +375,74 @@ class UnitDetailViewController: NSViewController {
                 }
             }
         }
-        
-        override init(frame frameRect: NSRect) {
+
+        init(frame frameRect: NSRect, pieceAccessory: NSView) {
             let titleLabel = NSTextField(labelWithString: "Title")
             titleLabel.font = NSFont.systemFont(ofSize: 18)
             titleLabel.textColor = NSColor.labelColor
             let contentBox = NSView(frame: NSRect(x: 0, y: 0, width: 32, height: 32))
-            
+
             self.titleLabel = titleLabel
             self.emptyContentView = contentBox
+            self.pieceAccessory = pieceAccessory
             super.init(frame: frameRect)
-            
+
             addSubview(contentBox)
             addSubview(titleLabel)
-            
+            pieceAccessory.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(pieceAccessory)
+
             contentBox.translatesAutoresizingMaskIntoConstraints = false
             titleLabel.translatesAutoresizingMaskIntoConstraints = false
-            
+
             addContentViewConstraints(contentBox)
             NSLayoutConstraint.activate([
                 titleLabel.centerXAnchor.constraint(equalTo: self.centerXAnchor),
-                ])
+                pieceAccessory.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 8),
+                pieceAccessory.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
+                pieceAccessory.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
+                pieceAccessory.bottomAnchor.constraint(equalTo: self.bottomAnchor, constant: -8),
+            ])
         }
-        
+
         required init?(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
-        
+
         private func addContentViewConstraints(_ contentBox: NSView) {
             NSLayoutConstraint.activate([
                 contentBox.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 8),
                 contentBox.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
                 contentBox.topAnchor.constraint(equalTo: self.topAnchor, constant: 8),
-                contentBox.heightAnchor.constraint(equalTo: self.heightAnchor, multiplier: 0.61803398875),
+                contentBox.heightAnchor.constraint(equalTo: self.heightAnchor, multiplier: 0.55),
                 titleLabel.topAnchor.constraint(equalTo: contentBox.bottomAnchor, constant: 8),
                 ])
         }
-        
+
     }
-    
+
     override func loadView() {
-        let container = ContainerView(frame: NSRect(x: 0, y: 0, width: 256, height: 256))
+        let stack = NSStackView(views: [playbackControls, pieceView])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.distribution = .fill
+        stack.spacing = 4
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.setHuggingPriority(.required, for: .vertical)
+        pieceView.translatesAutoresizingMaskIntoConstraints = false
+        playbackControls.translatesAutoresizingMaskIntoConstraints = false
+        stack.arrangedSubviews.forEach {
+            $0.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
+
+        let container = ContainerView(frame: NSRect(x: 0, y: 0, width: 256, height: 512),
+                                      pieceAccessory: stack)
         self.view = container
-        
+
         addChild(unitView)
         container.contentView = unitView.view
+        pieceView.selectionDelegate = self
+        playbackControls.delegate = self
     }
     
 }

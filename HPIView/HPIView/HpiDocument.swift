@@ -338,7 +338,13 @@ extension HpiBrowserViewController {
             else if file.hasExtension("3do") {
                 let model = try UnitModel(contentsOf: fileHandle)
                 let controller = bindContentViewController(as: ModelViewController.self)
-                try controller.load(model)
+                let baseName = (file.info.name as NSString).deletingPathExtension
+                let script: UnitScript? = {
+                    guard let handle = try? hpiDocument.filesystem.openFile(at: "scripts/" + baseName + ".COB")
+                        else { return nil }
+                    return try? UnitScript(contentsOf: handle)
+                }()
+                try controller.load(model, script: script)
             }
             else if file.hasExtension("cob") {
                 let script = try UnitScript(contentsOf: fileHandle)
@@ -425,11 +431,26 @@ extension HpiBrowserViewController {
     }
     
     @IBAction func extractAll(sender: Any?) {
-        
+
+        guard let window = hpiDocument.windowForSheet
+            else { Swift.print("Document has no windowForSheet."); return }
+
+        let items = hpiDocument.filesystem.root.items.map { HpiItem($0) }
+        guard items.count > 0
+            else { Swift.print("Archive is empty; nothing to extract."); return }
+
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
-        
+        panel.canCreateDirectories = true
+        panel.beginSheetModal(for: window) {
+            switch $0 {
+            case .OK:
+                if let url = panel.url { self.extractItems(items, to: url) }
+            default:
+                ()
+            }
+        }
     }
     
     func extractItems(_ items: [HpiItem], to rootDirectory: URL) {
@@ -546,48 +567,49 @@ class HpiItemPreviewController: NSViewController, HpiItemPreviewDisplay {
         
         override init(frame frameRect: NSRect) {
             let titleLabel = NSTextField(labelWithString: "Title")
-            titleLabel.font = NSFont.systemFont(ofSize: 18)
+            titleLabel.font = NSFont.systemFont(ofSize: 13)
             titleLabel.textColor = NSColor.labelColor
             let sizeLabel = NSTextField(labelWithString: "Empty")
-            sizeLabel.font = NSFont.systemFont(ofSize: 12)
+            sizeLabel.font = NSFont.systemFont(ofSize: 11)
             sizeLabel.textColor = NSColor.secondaryLabelColor
             let contentBox = NSView(frame: NSRect(x: 0, y: 0, width: 32, height: 32))
-            
+
             self.titleLabel = titleLabel
             self.sizeLabel = sizeLabel
             self.emptyContentView = contentBox
             super.init(frame: frameRect)
-            
+
             addSubview(contentBox)
             addSubview(titleLabel)
             addSubview(sizeLabel)
-            
+
             contentBox.translatesAutoresizingMaskIntoConstraints = false
             titleLabel.translatesAutoresizingMaskIntoConstraints = false
             sizeLabel.translatesAutoresizingMaskIntoConstraints = false
-            
+
             addContentViewConstraints(contentBox)
             NSLayoutConstraint.activate([
-                titleLabel.centerXAnchor.constraint(equalTo: self.centerXAnchor),
-                sizeLabel.centerXAnchor.constraint(equalTo: self.centerXAnchor),
-                sizeLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 0),
+                titleLabel.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 8),
+                titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: sizeLabel.leadingAnchor, constant: -8),
+                titleLabel.centerYAnchor.constraint(equalTo: sizeLabel.centerYAnchor),
+                sizeLabel.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
+                sizeLabel.bottomAnchor.constraint(equalTo: self.bottomAnchor, constant: -6),
                 ])
         }
-        
+
         required init?(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
-        
+
         private func addContentViewConstraints(_ contentBox: NSView) {
             NSLayoutConstraint.activate([
                 contentBox.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 8),
                 contentBox.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
                 contentBox.topAnchor.constraint(equalTo: self.topAnchor, constant: 8),
-                contentBox.heightAnchor.constraint(equalTo: self.heightAnchor, multiplier: 0.61803398875),
-                titleLabel.topAnchor.constraint(equalTo: contentBox.bottomAnchor, constant: 8),
+                contentBox.bottomAnchor.constraint(equalTo: titleLabel.topAnchor, constant: -6),
                 ])
         }
-        
+
     }
     
     override func loadView() {

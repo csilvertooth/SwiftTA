@@ -61,7 +61,12 @@ extension BasicMetalUnitViewRenderer: MetalUnitViewRenderer {
         let modelMatrix = matrix_float4x4.identity
         let projection = matrix_float4x4.ortho(0, viewState.sceneSize.width, viewState.sceneSize.height, 0, -1024, 256)
         let sceneCentering = matrix_float4x4.translation(viewState.sceneSize.width / 2, viewState.sceneSize.height / 2, 0)
-        let sceneView = matrix_float4x4.rotate(sceneCentering * matrix_float4x4.taPerspective, radians: -viewState.rotateZ * (Float.pi / 180.0), axis: vector_float3(0, 0, 1))
+        let perspective = matrix_float4x4.rotate(matrix_float4x4.taPerspective,
+                                                 radians: viewState.rotateX * (Float.pi / 180.0),
+                                                 axis: vector_float3(1, 0, 0))
+        let sceneView = matrix_float4x4.rotate(sceneCentering * perspective,
+                                               radians: -viewState.rotateZ * (Float.pi / 180.0),
+                                               axis: vector_float3(0, 0, 1))
         let gridView = matrix_float4x4.translate(sceneView, Float(-grid.size.width / 2), Float(-grid.size.height / 2), 0)
         let normal = matrix_float3x3(topLeftOf: sceneView).inverse.transpose
         
@@ -73,6 +78,7 @@ extension BasicMetalUnitViewRenderer: MetalUnitViewRenderer {
         
         uniforms.pointee.lightPosition = vector_float3(50, 50, 100)
         uniforms.pointee.viewPosition = vector_float3(viewState.sceneSize.width / 2, viewState.sceneSize.height / 2, 0)
+        uniforms.pointee.highlightedPieceIndex = Int32(viewState.highlightedPieceIndex)
         switch (viewState.drawMode, viewState.textured) {
         case (.solid, true), (.outlined, true), (.wireframe, _):
             uniforms.pointee.objectColor = vector_float4.zero

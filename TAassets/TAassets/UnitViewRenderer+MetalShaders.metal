@@ -24,6 +24,7 @@ typedef struct
     float3 positionM;
     float3 normal;
     float2 texCoord;
+    int pieceIndex [[flat]];
 } FragmentIn;
 
 vertex FragmentIn unitVertexShader(UnitMetalRenderer_ModelVertex in [[stage_in]],
@@ -36,6 +37,7 @@ vertex FragmentIn unitVertexShader(UnitMetalRenderer_ModelVertex in [[stage_in]]
     out.positionM = float3(position);
     out.normal = uniforms.normalMatrix * in.normal;
     out.texCoord = in.texCoord;
+    out.pieceIndex = in.pieceIndex;
 
     return out;
 }
@@ -79,6 +81,9 @@ fragment float4 unitFragmentShader(FragmentIn in [[stage_in]],
     else {
         out_color = lightContribution * uniforms.objectColor;
     }
+    if (uniforms.highlightedPieceIndex >= 0 && in.pieceIndex == uniforms.highlightedPieceIndex) {
+        out_color.rgb = mix(out_color.rgb, float3(1.0, 0.85, 0.15), 0.55);
+    }
     return out_color;
 }
 
@@ -90,13 +95,16 @@ fragment float4 unitUnlitFragmentShader(FragmentIn in [[stage_in]],
                                    mag_filter::nearest,
                                    min_filter::nearest);
     half4 colorSample = colorMap.sample(colorSampler, in.texCoord.xy);
-    
+
     float4 out_color;
     if (uniforms.objectColor.a == 0.0) {
         out_color = float4(colorSample);
     }
     else {
         out_color = uniforms.objectColor;
+    }
+    if (uniforms.highlightedPieceIndex >= 0 && in.pieceIndex == uniforms.highlightedPieceIndex) {
+        out_color.rgb = mix(out_color.rgb, float3(1.0, 0.85, 0.15), 0.55);
     }
     return out_color;
 }

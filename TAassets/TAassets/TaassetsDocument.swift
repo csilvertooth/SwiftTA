@@ -13,30 +13,105 @@ class TaassetsDocument: NSDocument {
 
     var filesystem: FileSystem!
     var sides: [SideInfo] = []
+    private(set) var baseURL: URL!
+    private(set) var currentModURL: URL?
+
+    var availableMods: [URL] {
+        guard let baseURL = baseURL else { return [] }
+        let modsDir = baseURL.appendingPathComponent("mods", isDirectory: true)
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(
+                at: modsDir,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles])
+        else { return [] }
+        let allowed = Set(FileSystem.weightedArchiveExtensions)
+        return entries
+            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+            .filter { dir in
+                ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? [])
+                    .contains { allowed.contains(($0 as NSString).pathExtension.lowercased()) }
+            }
+            .sorted { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }
+    }
 
     override func makeWindowControllers() {
-        // Returns the Storyboard that contains your Document window.
         let storyboard = NSStoryboard(name: "Main", bundle: nil)
         let windowController = storyboard.instantiateController(withIdentifier: "Document Window Controller") as! NSWindowController
         let viewController = windowController.contentViewController as! TaassetsViewController
         viewController.shared = TaassetsSharedState(filesystem: filesystem, sides: sides)
         self.addWindowController(windowController)
     }
-    
+
     override func read(from directoryURL: URL, ofType typeName: String) throws {
-        
+
         let fm = FileManager.default
         var dirCheck: ObjCBool = false
         guard directoryURL.isFileURL, fm.fileExists(atPath: directoryURL.path, isDirectory: &dirCheck), dirCheck.boolValue
             else { throw NSError(domain: NSOSStatusErrorDomain, code: readErr, userInfo: nil) }
-        
+
+        let parent = directoryURL.deletingLastPathComponent()
+        let parentName = parent.lastPathComponent.lowercased()
+        if (parentName == "mods" || parentName == "mod"),
+           TaassetsDocument.folderHasArchives(parent.deletingLastPathComponent()) {
+            let grandparent = parent.deletingLastPathComponent()
+            Swift.print("Detected mod folder \(directoryURL.lastPathComponent) under base \(grandparent.lastPathComponent); loading combined")
+            baseURL = grandparent
+            currentModURL = directoryURL
+        } else {
+            baseURL = directoryURL
+            currentModURL = nil
+        }
+        try loadFilesystem()
+    }
+
+    private static func folderHasArchives(_ url: URL) -> Bool {
+        let allowed = Set(FileSystem.weightedArchiveExtensions)
+        let contents = (try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []
+        return contents.contains { allowed.contains(($0 as NSString).pathExtension.lowercased()) }
+    }
+
+    private func loadFilesystem() throws {
         let begin = Date()
-        filesystem = try! FileSystem(mergingHpisIn: directoryURL)
+        filesystem = try FileSystem(mergingHpisIn: baseURL, modDirectory: currentModURL)
         let end = Date()
-        Swift.print("\(directoryURL.lastPathComponent) filesystem load time: \(end.timeIntervalSince(begin)) seconds")
-        
-        let sidedata = try filesystem.openFile(at: "gamedata/sidedata.tdf")
-        sides = try SideInfo.load(contentsOf: sidedata)
+        let label = currentModURL.map { "\(baseURL.lastPathComponent) + mod:\($0.lastPathComponent)" } ?? baseURL.lastPathComponent
+        Swift.print("\(label) filesystem load time: \(end.timeIntervalSince(begin)) seconds")
+
+        if let sidedata = try? filesystem.openFile(at: "gamedata/sidedata.tdf"),
+           let loaded = try? SideInfo.load(contentsOf: sidedata) {
+            sides = loaded
+        } else {
+            sides = []
+            Swift.print("No gamedata/sidedata.tdf found — palettes will fall back to PALETTE.PAL")
+        }
+    }
+
+    @IBAction func activateMod(_ sender: NSMenuItem) {
+        let newMod = sender.representedObject as? URL
+        Swift.print(">>> activateMod invoked: \(newMod?.lastPathComponent ?? "base only")")
+        guard newMod != currentModURL else {
+            Swift.print("    same as current; skipping reload")
+            return
+        }
+        let previous = currentModURL
+        currentModURL = newMod
+        do {
+            try loadFilesystem()
+            var controllersUpdated = 0
+            for wc in windowControllers {
+                if let vc = wc.contentViewController as? TaassetsViewController {
+                    vc.shared = TaassetsSharedState(filesystem: filesystem, sides: sides)
+                    vc.reloadCurrentContent()
+                    controllersUpdated += 1
+                }
+            }
+            Swift.print("    reloaded \(controllersUpdated) view controller(s)")
+        } catch {
+            Swift.print("    load failed: \(error) — reverting to \(previous?.lastPathComponent ?? "base")")
+            currentModURL = previous
+            NSAlert(error: error).runModal()
+        }
     }
 
 }
@@ -102,17 +177,24 @@ class TaassetsViewController: NSViewController {
     }
     
     @IBAction func didChangeSelection(_ sender: NSButton) {
-        
+
         // Disallow deselcetion (toggling).
         // A selected button can only be deselected by selecting something else.
         guard sender.state == .on, !(sender === selectedButton) else {
             sender.state = .on
             return
         }
-        
+
         selectedButton?.state = .off
         selectedButton = sender
         showSelectedContent(for: sender)
+    }
+
+    func reloadCurrentContent() {
+        Swift.print("    reloadCurrentContent called; selectedButton=\(String(describing: selectedButton?.identifier?.rawValue))")
+        if let button = selectedButton {
+            showSelectedContent(for: button)
+        }
     }
     
     func showSelectedContent(for button: NSButton) {

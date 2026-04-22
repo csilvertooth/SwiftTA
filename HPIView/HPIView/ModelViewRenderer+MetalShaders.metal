@@ -24,6 +24,7 @@ typedef struct
     float3 positionM;
     float3 normal;
     float2 texCoord;
+    int pieceIndex [[flat]];
 } FragmentIn;
 
 vertex FragmentIn vertexShader(ModelMetalRenderer_ModelVertex in [[stage_in]],
@@ -36,6 +37,7 @@ vertex FragmentIn vertexShader(ModelMetalRenderer_ModelVertex in [[stage_in]],
     out.positionM = float3(position);
     out.normal = uniforms.normalMatrix * in.normal;
     out.texCoord = in.texCoord;
+    out.pieceIndex = in.pieceIndex;
 
     return out;
 }
@@ -82,6 +84,9 @@ fragment float4 fragmentShader(FragmentIn in [[stage_in]],
 //    else {
         out_color = lightContribution * uniforms.objectColor;
 //    }
+    if (uniforms.highlightedPieceIndex >= 0 && in.pieceIndex == uniforms.highlightedPieceIndex) {
+        out_color.rgb = mix(out_color.rgb, float3(1.0, 0.85, 0.15), 0.55);
+    }
     return out_color;
 }
 

@@ -59,7 +59,12 @@ extension BasicMetalModelViewRenderer: MetalModelViewRenderer {
         let modelMatrix = matrix_float4x4.identity
         let projection = matrix_float4x4.ortho(0, viewState.sceneSize.width, viewState.sceneSize.height, 0, -1024, 256)
         let sceneCentering = matrix_float4x4.translation(viewState.sceneSize.width / 2, viewState.sceneSize.height / 2, 0)
-        let sceneView = matrix_float4x4.rotate(sceneCentering * matrix_float4x4.taPerspective, radians: -viewState.rotateZ * (Float.pi / 180.0), axis: vector_float3(0, 0, 1))
+        let perspective = matrix_float4x4.rotate(matrix_float4x4.taPerspective,
+                                                 radians: viewState.rotateX * (Float.pi / 180.0),
+                                                 axis: vector_float3(1, 0, 0))
+        let sceneView = matrix_float4x4.rotate(sceneCentering * perspective,
+                                               radians: -viewState.rotateZ * (Float.pi / 180.0),
+                                               axis: vector_float3(0, 0, 1))
         let gridView = matrix_float4x4.translate(sceneView, Float(-grid.size.width / 2), Float(-grid.size.height / 2), 0)
         let normal = matrix_float3x3(topLeftOf: sceneView).inverse.transpose
         
@@ -72,6 +77,7 @@ extension BasicMetalModelViewRenderer: MetalModelViewRenderer {
         uniforms.pointee.lightPosition = vector_float3(50, 50, 100)
         uniforms.pointee.viewPosition = vector_float3(viewState.sceneSize.width / 2, viewState.sceneSize.height / 2, 0)
         uniforms.pointee.objectColor = vector_float4(0.95, 0.85, 0.80, 1)
+        uniforms.pointee.highlightedPieceIndex = Int32(viewState.highlightedPieceIndex)
         
         if viewState.drawMode == .wireframe || viewState.drawMode == .outlined {
             let wireUniformsR = UnsafeMutableRawPointer(uniformBuffer.contents() + wireUniformOffset)
@@ -168,12 +174,13 @@ private extension BasicMetalModelViewRenderer {
     class func buildModelVertexDescriptor() -> MTLVertexDescriptor {
         let configurator = MetalVertexDescriptorConfigurator<ModelMetalRenderer_ModelVertexAttribute, ModelMetalRenderer_BufferIndex>()
         typealias Vertex = ModelMetalRenderer_ModelVertex
-        
+
         configurator.setAttribute(.position, format: .float3, keyPath: \Vertex.position, bufferIndex: .modelVertices)
         configurator.setAttribute(.normal, format: .float3, keyPath: \Vertex.normal, bufferIndex: .modelVertices)
         configurator.setAttribute(.texcoord, format: .float2, keyPath: \Vertex.texCoord, bufferIndex: .modelVertices)
+        configurator.setAttribute(.pieceIndex, format: .int, keyPath: \Vertex.pieceIndex, bufferIndex: .modelVertices)
         configurator.setLayout(.modelVertices, stride: MemoryLayout<Vertex>.stride, stepRate: 1, stepFunction: .perVertex)
-        
+
         return configurator.vertexDescriptor
     }
     
@@ -389,15 +396,19 @@ private extension MetalModel {
                        _ texCoord3: vector_float2, _ vertex3: vector_float3,
                        _ normal: vector_float3,
                        _ pieceIndex: Int) {
+        let pIndex = Int32(pieceIndex)
         vertexBuffer[0].position = vertex1
         vertexBuffer[0].texCoord = texCoord1
         vertexBuffer[0].normal = normal
+        vertexBuffer[0].pieceIndex = pIndex
         vertexBuffer[1].position = vertex2
         vertexBuffer[1].texCoord = texCoord2
         vertexBuffer[1].normal = normal
+        vertexBuffer[1].pieceIndex = pIndex
         vertexBuffer[2].position = vertex3
         vertexBuffer[2].texCoord = texCoord3
         vertexBuffer[2].normal = normal
+        vertexBuffer[2].pieceIndex = pIndex
         vertexBuffer += 3
     }
     
@@ -406,12 +417,13 @@ private extension MetalModel {
                            _ vertex2: vector_float3,
                            _ normal: vector_float3,
                            _ pieceIndex: Int) {
+        let pIndex = Int32(pieceIndex)
         vertexBuffer[0].position = vertex1
-//        vertexBuffer[0].texCoord = texCoord1
         vertexBuffer[0].normal = normal
+        vertexBuffer[0].pieceIndex = pIndex
         vertexBuffer[1].position = vertex2
-//        vertexBuffer[1].texCoord = texCoord2
         vertexBuffer[1].normal = normal
+        vertexBuffer[1].pieceIndex = pIndex
         vertexBuffer += 2
     }
     

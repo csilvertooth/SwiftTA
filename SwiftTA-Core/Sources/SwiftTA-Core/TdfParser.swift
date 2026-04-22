@@ -47,9 +47,9 @@ public extension TdfParser {
         let count = data.count
         var token: Token?
         
-        data.withUnsafeBytes() {
+        data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
             while scanPosition < count && token == nil {
-                (state, token) = TdfParser.transition(state, consuming: $0[scanPosition], context: &context)
+                (state, token) = TdfParser.transition(state, consuming: bytes[scanPosition], context: &context)
                 scanPosition += 1
             }
         }
@@ -127,9 +127,9 @@ public extension TdfParser {
         let count = data.count
         var token: Token?
         
-        data.withUnsafeBytes() {
+        data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
             while scanPosition < count {
-                (state, token) = TdfParser.transition(state, consuming: $0[scanPosition], context: &context)
+                (state, token) = TdfParser.transition(state, consuming: bytes[scanPosition], context: &context)
                 scanPosition += 1
                 switch token {
                 case let .property(key, value)? where depth == startDepth:
@@ -151,12 +151,12 @@ public extension TdfParser {
     
     static func parse(_ data: Data, tokenHandler: (Token) -> () ) {
         let count = data.count
-        data.withUnsafeBytes() {
+        data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
             var state = State.seekingSection
             var context = Context()
             var token: Token?
             for i in 0..<count {
-                (state, token) = transition(state, consuming: $0[i], context: &context)
+                (state, token) = transition(state, consuming: bytes[i], context: &context)
                 if let token = token { tokenHandler(token) }
             }
         }
@@ -181,9 +181,9 @@ public extension TdfParser {
         var level = 0
         var levels: [Object] = [Object()]
         
-        data.withUnsafeBytes() {
+        data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
             while scanPosition < count {
-                (state, token) = TdfParser.transition(state, consuming: $0[scanPosition], context: &context)
+                (state, token) = TdfParser.transition(state, consuming: bytes[scanPosition], context: &context)
                 scanPosition += 1
                 guard let token = token else { continue }
                 switch token {
@@ -223,9 +223,9 @@ public extension TdfParser {
         var level = 0
         var levels: [Object] = [Object()]
         
-        data.withUnsafeBytes() {
+        data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
             while scanPosition < count {
-                (state, token) = TdfParser.transition(state, consuming: $0[scanPosition], context: &context)
+                (state, token) = TdfParser.transition(state, consuming: bytes[scanPosition], context: &context)
                 scanPosition += 1
                 guard let token = token else { continue }
                 switch token {

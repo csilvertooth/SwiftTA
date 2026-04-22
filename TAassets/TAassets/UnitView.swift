@@ -40,7 +40,13 @@ class UnitViewController: NSViewController {
               _ texture: UnitTextureAtlas,
               _ filesystem: FileSystem,
               _ palette: Palette) throws {
-        
+        viewState.zoom = 1.0
+        viewState.rotateX = 0
+        viewState.rotateY = 0
+        viewState.rotateZ = 160
+        viewState.highlightedPieceIndex = -1
+        viewState.playbackSpeed = 1.0
+
         let newUnit = UnitInstance(
             info: info,
             model: model,
@@ -67,11 +73,44 @@ class UnitViewController: NSViewController {
         unit = nil
         viewState.model = nil
         viewState.modelInstance = nil
+        viewState.highlightedPieceIndex = -1
         unitView.clear()
+    }
+
+    func setHighlightedPiece(_ index: UnitModel.Pieces.Index?) {
+        viewState.highlightedPieceIndex = index.map(Int32.init) ?? -1
+    }
+
+    var availableScriptFunctions: [String] {
+        unit?.script.modules.map { $0.name } ?? []
+    }
+
+    func setPlaybackSpeed(_ speed: Float) {
+        viewState.playbackSpeed = max(0, min(4, speed))
+    }
+
+    var playbackSpeed: Float { viewState.playbackSpeed }
+
+    func startScript(_ name: String) {
+        guard var unit = unit else { return }
+        unit.scriptContext.startScript(name)
+        self.unit = unit
+    }
+
+    func stepOnce(by duration: Double = 1.0 / 30.0) {
+        guard var unit = unit else { return }
+        unit.scriptContext.run(for: unit.modelInstance, on: self)
+        unit.scriptContext.applyAnimations(to: &unit.modelInstance, for: GameFloat(duration))
+        viewState.modelInstance = unit.modelInstance
+        self.unit = unit
     }
     
     private func computeSceneSize() {
-        let w = GameFloat( ((unit?.info.footprint.width ?? 2) + 8) * ModelViewState.gridSize )
+        let footprintWidth = GameFloat( ((unit?.info.footprint.width ?? 2) + 8) * ModelViewState.gridSize )
+        let extent = viewState.model?.maxWorldExtent ?? 0
+        let extentFit = extent * 2.3
+        let baseWidth = max(footprintWidth, extentFit)
+        let w = (baseWidth > 0 ? baseWidth : footprintWidth) / GameFloat(viewState.zoom)
         viewState.sceneSize = Size2f(width: w, height: w * viewState.aspectRatio)
     }
     
@@ -102,7 +141,24 @@ extension UnitViewController: UnitViewStateProvider {
         else if event.modifierFlags.contains(.option) { viewState.rotateY += GLfloat(event.deltaX) }
         else { viewState.rotateZ += GLfloat(event.deltaX) }
     }
-    
+
+    override func scrollWheel(with event: NSEvent) {
+        let delta = Float(event.scrollingDeltaY)
+        guard delta != 0 else { return }
+        let factor = exp(delta * 0.02)
+        let newZoom = max(0.1, min(32.0, viewState.zoom * factor))
+        guard newZoom != viewState.zoom else { return }
+        viewState.zoom = newZoom
+        computeSceneSize()
+    }
+
+    override func magnify(with event: NSEvent) {
+        let factor = Float(1.0 + event.magnification)
+        let newZoom = max(0.1, min(32.0, viewState.zoom * factor))
+        viewState.zoom = newZoom
+        computeSceneSize()
+    }
+
     override func keyDown(with event: NSEvent) {
         switch event.characters {
         case .some("w"):
@@ -115,6 +171,18 @@ extension UnitViewController: UnitViewStateProvider {
             viewState.textured = !viewState.textured
         case .some("l"):
             viewState.lighted = !viewState.lighted
+        case .some("="), .some("+"):
+            viewState.zoom = min(32.0, viewState.zoom * 1.25)
+            computeSceneSize()
+        case .some("-"), .some("_"):
+            viewState.zoom = max(0.1, viewState.zoom / 1.25)
+            computeSceneSize()
+        case .some("0"):
+            viewState.zoom = 1.0
+            viewState.rotateX = 0
+            viewState.rotateY = 0
+            viewState.rotateZ = 160
+            computeSceneSize()
         default:
             ()
         }
@@ -122,35 +190,43 @@ extension UnitViewController: UnitViewStateProvider {
     
     func updateAnimatingState(deltaTime: Double) {
         guard var unit = unit else { return }
-        
+
+        let speed = viewState.playbackSpeed
+        if speed <= 0 {
+            viewState.modelInstance = unit.modelInstance
+            self.unit = unit
+            return
+        }
+        let scaledDelta = deltaTime * Double(speed)
+
         if shouldStartMoving && getTime() > loadTime + 1 {
             unit.scriptContext.startScript("StartMoving")
             shouldStartMoving = false
             viewState.isMoving = true
             viewState.speed = 0
         }
-        
+
         unit.scriptContext.run(for: unit.modelInstance, on: self)
-        unit.scriptContext.applyAnimations(to: &unit.modelInstance, for: GameFloat(deltaTime))
-        
+        unit.scriptContext.applyAnimations(to: &unit.modelInstance, for: GameFloat(scaledDelta))
+
         if viewState.isMoving {
-            let dt = GameFloat(deltaTime * 10)
+            let dt = GameFloat(scaledDelta * 10)
             let acceleration = unit.info.acceleration
             let maxSpeed = unit.info.maxVelocity
-            var speed = viewState.speed
-            
-            if speed < maxSpeed {
-                speed = min(speed + dt * acceleration, maxSpeed)
+            var currentSpeed = viewState.speed
+
+            if currentSpeed < maxSpeed {
+                currentSpeed = min(currentSpeed + dt * acceleration, maxSpeed)
             }
-            viewState.movement += dt * speed
-            viewState.speed = speed
-            
+            viewState.movement += dt * currentSpeed
+            viewState.speed = currentSpeed
+
             let gridSize = GameFloat(UnitViewState.gridSize)
             if viewState.movement > gridSize {
                 viewState.movement -= gridSize
             }
         }
-        
+
         viewState.modelInstance = unit.modelInstance
         self.unit = unit
     }
@@ -183,7 +259,11 @@ struct UnitViewState {
     
     var model: UnitModel?
     var modelInstance: UnitModel.Instance?
-    
+
+    var zoom: Float = 1.0
+    var highlightedPieceIndex: Int32 = -1
+    var playbackSpeed: Float = 1.0
+
     var isMoving = false
     var speed: GameFloat = 0
     var movement: GameFloat = 0
