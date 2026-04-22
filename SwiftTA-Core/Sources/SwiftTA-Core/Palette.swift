@@ -23,7 +23,7 @@ public struct Palette {
         self.colors = colors
     }
     
-    public init() { colors = Array(repeating: Color.white, count: 255) }
+    public init() { colors = Array(repeating: Color.white, count: 256) }
     
     public subscript(index: Int) -> Color {
         return colors[index]
