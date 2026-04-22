@@ -1,5 +1,38 @@
 # SwiftTA
 
+> **Fork notes (Apple silicon + mod browsing):** This branch of the original [loganjones/SwiftTA](https://github.com/loganjones/SwiftTA) focuses on making **TAassets** and **HPIView** useful asset inspectors on current Xcode / macOS with Apple silicon, and extends TAassets with a piece-level 3DO inspector, COB playback controls, and a mod-aware filesystem loader. Full write-up with code paths and troubleshooting is in [notes/SwiftTA_Apple_Silicon_Bootstrap.md](notes/SwiftTA_Apple_Silicon_Bootstrap.md).
+>
+> **What's new in this fork**
+> - **Builds on Xcode 26 / macOS 26 / Apple silicon** — Swift disambiguation fixes, deployment target bump, Metal toolchain check, palette off-by-one fix.
+> - **Piece hierarchy inspector** (both apps) — outline of every 3DO piece with primitive / vertex / child counts. Selecting a piece tints it gold in the 3D view (new Metal uniform + flat piece-index interpolant). `Script Refs` column lists every COB module that manipulates each piece, extracted statically from the bytecode.
+> - **COB playback controls** (TAassets) — pause / step / 0×–2× speed slider, plus a "Run script…" pull-down for every module in the unit's COB so you can trigger `Activate`, `QueryPrimary`, etc. on demand and watch building internals animate piece by piece.
+> - **Camera controls** — scroll / pinch zoom, shift-drag pitch, `=` / `-` / `0` keys. Auto-fits the model on load so large buildings don't open zoomed past the viewport; re-fits on window resize.
+> - **Mod-aware filesystem** — a dynamic `Mods` menu lists every mod folder under `<base>/mods/` and rebuilds the merged filesystem on selection. Opening a mod folder directly (e.g. `~/tafiles/mods/taesc`) is auto-paired with the vanilla base it lives under. TAESC-style mods with nested `unitsE/` and off-spec `unitpicE/` directories are discovered recursively.
+> - **Tolerant standalone loading** — `gamedata/sidedata.tdf` is optional; palette lookup falls back through side → standard → neutral.
+> - **HPIView extraction** — the previously-stub `Extract All` menu item is implemented, so you can now dump the entire archive to a folder.
+> - **Script VM hardening** — the COB `divide` opcode no longer traps on divide-by-zero (observed in TAESC scripts).
+>
+> **Using the prebuilt TAassets**
+> 1. Clone this repo, open `SwiftTA.xcworkspace` in Xcode 26+, or build from CLI:
+>    ```
+>    xcodebuild -workspace SwiftTA.xcworkspace -scheme TAassets \
+>               -destination 'platform=macOS,arch=arm64' \
+>               -configuration Release build
+>    ```
+> 2. Copy `build/.../Release/TAassets.app` anywhere you like (e.g. `~/Applications`).
+> 3. First launch: right-click the app → Open (ad-hoc signed, so Gatekeeper asks once).
+> 4. `File → Open…` → pick any directory of TA archives. Unit browser, file browser, and map browser all populate.
+>    - Switch mods via the **Mods** menu.
+>    - Open `<base>/mods/<ModName>` directly — it's treated as `base + mod` automatically.
+>
+> **Using HPIView**
+> 1. Same build command with `-scheme HPIView`.
+> 2. `File → Open…` on any `.hpi`, `.ufo`, `.ccx`, `.gp3`, or `.gpf`.
+> 3. Drill into `objects3d/` → click a `.3DO` → browse the piece tree and script references on the right. Split divider resizes the outline.
+> 4. Extract single files, folders, or the whole archive from the **File** menu.
+>
+> ---
+
 I like [Swift](https://swift.org); but I'd like to get to know it better outside of my day job: writing iOS apps and libraries. So I've decided to retrace the steps of an old project I worked on ages ago: [writing a clone of Total Annihilation](https://github.com/loganjones/nTA-Total-Annihilation-Clone).
 
 Currently, there is a simple game client (macOS, iOS, Linux) that loads up a hardcoded map and displays a single unit. See the [Build](#build) section for information on building and running the client.
