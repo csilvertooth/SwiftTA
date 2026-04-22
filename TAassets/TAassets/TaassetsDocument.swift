@@ -62,8 +62,13 @@ class TaassetsDocument: NSDocument {
         let label = currentModURL.map { "\(baseURL.lastPathComponent) + mod:\($0.lastPathComponent)" } ?? baseURL.lastPathComponent
         Swift.print("\(label) filesystem load time: \(end.timeIntervalSince(begin)) seconds")
 
-        let sidedata = try filesystem.openFile(at: "gamedata/sidedata.tdf")
-        sides = try SideInfo.load(contentsOf: sidedata)
+        if let sidedata = try? filesystem.openFile(at: "gamedata/sidedata.tdf"),
+           let loaded = try? SideInfo.load(contentsOf: sidedata) {
+            sides = loaded
+        } else {
+            sides = []
+            Swift.print("No gamedata/sidedata.tdf found — palettes will fall back to PALETTE.PAL")
+        }
     }
 
     @IBAction func activateMod(_ sender: NSMenuItem) {

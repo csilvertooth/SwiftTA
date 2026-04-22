@@ -256,7 +256,7 @@ class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate, Pl
         let scriptFile = try shared.filesystem.openFile(at: "scripts/" + unit.object + ".COB")
         let script = try UnitScript(contentsOf: scriptFile)
         let atlas = UnitTextureAtlas(for: model.textures, from: shared.textures)
-        let palette = try Palette.texturePalette(for: unit, in: shared.sides, from: shared.filesystem)
+        let palette = resolvePalette(for: unit)
         try unitView.load(unit, model, script, atlas, shared.filesystem, palette)
         pieceView.apply(model: model, script: script)
         playbackControls.reset(scriptFunctions: unitView.availableScriptFunctions)
@@ -268,6 +268,16 @@ class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate, Pl
         unitView.clear()
         pieceView.clear()
         playbackControls.reset(scriptFunctions: [])
+    }
+
+    private func resolvePalette(for unit: UnitInfo) -> Palette {
+        if let p = try? Palette.texturePalette(for: unit, in: shared.sides, from: shared.filesystem) {
+            return p
+        }
+        if let p = try? Palette.standardTaPalette(from: shared.filesystem) {
+            return p.applyingChromaKeys(Palette.textureTransparencies)
+        }
+        return Palette()
     }
     
     private func tempSaveAtlasToFile(_ atlas: UnitTextureAtlas, _ palette: Palette) throws {
