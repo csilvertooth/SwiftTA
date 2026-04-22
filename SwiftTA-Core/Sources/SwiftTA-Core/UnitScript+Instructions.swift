@@ -383,10 +383,15 @@ private func waitForTurn(execution: ScriptExecutionContext) throws {
     let piece = execution.immediate(at: 1)
     let axis = execution.immediate(at: 2)
     
-    execution.thread.status = .waitingForTurn(Int(piece), try execution.thread.makeAxis(for: axis))
-    
-    print("[\(execution.thread.id)] wait for turn: \(piece) around \(axis)")
+    let modelPiece = try execution.process.pieceIndex(at: piece)
+    let resolvedAxis = try execution.thread.makeAxis(for: axis)
     execution.thread.instructionPointer += 3
+    // If no matching animation is pending, the wait is already satisfied — leave
+    // the thread running rather than parking it for the applyAnimations pass.
+    let matches = execution.process.animations.contains(where: { UnitScript.Context.animationMatchesTurn($0, piece: modelPiece, axis: resolvedAxis) })
+    if matches {
+        execution.thread.status = .waitingForTurn(modelPiece, resolvedAxis)
+    }
 }
 
 /**
@@ -398,14 +403,17 @@ private func waitForTurn(execution: ScriptExecutionContext) throws {
  
  */
 private func waitForMove(execution: ScriptExecutionContext) throws {
-    
+
     let piece = execution.immediate(at: 1)
     let axis = execution.immediate(at: 2)
-    
-    execution.thread.status = .waitingForMove(Int(piece), try execution.thread.makeAxis(for: axis))
-    
-    print("[\(execution.thread.id)] wait for move: \(piece) along \(axis)")
+
+    let modelPiece = try execution.process.pieceIndex(at: piece)
+    let resolvedAxis = try execution.thread.makeAxis(for: axis)
     execution.thread.instructionPointer += 3
+    let matches = execution.process.animations.contains(where: { UnitScript.Context.animationMatchesTranslation($0, piece: modelPiece, axis: resolvedAxis) })
+    if matches {
+        execution.thread.status = .waitingForMove(modelPiece, resolvedAxis)
+    }
 }
 
 /**

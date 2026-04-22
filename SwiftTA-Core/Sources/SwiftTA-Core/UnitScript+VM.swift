@@ -133,6 +133,47 @@ public extension UnitScript.Context {
     func applyAnimations(to instance: inout UnitModel.Instance, for delta: GameFloat) {
         let unfinished = animations.compactMap { instance.apply($0, with: delta) }
         animations = unfinished
+        // Release any thread that was waiting for a turn / move that's now
+        // finished. Without this, wait-for-turn and wait-for-move freeze the
+        // thread forever and loops like walklegs() never advance past their
+        // first synchronization point.
+        for thread in threads where !thread.isFinished {
+            switch thread.status {
+            case .waitingForTurn(let piece, let axis):
+                if !animations.contains(where: { UnitScript.Context.animation($0, matchesTurnOn: piece, around: axis) }) {
+                    thread.status = .running
+                }
+            case .waitingForMove(let piece, let axis):
+                if !animations.contains(where: { UnitScript.Context.animation($0, matchesTranslationOn: piece, along: axis) }) {
+                    thread.status = .running
+                }
+            default:
+                break
+            }
+        }
+    }
+
+    private static func animation(_ anim: UnitScript.Animation, matchesTurnOn piece: Int, around axis: UnitScript.Axis) -> Bool {
+        return animationMatchesTurn(anim, piece: piece, axis: axis)
+    }
+
+    private static func animation(_ anim: UnitScript.Animation, matchesTranslationOn piece: Int, along axis: UnitScript.Axis) -> Bool {
+        return animationMatchesTranslation(anim, piece: piece, axis: axis)
+    }
+
+    public static func animationMatchesTurn(_ anim: UnitScript.Animation, piece: Int, axis: UnitScript.Axis) -> Bool {
+        switch anim {
+        case .rotation(let r):     return r.piece == piece && r.axis == axis
+        case .spinUp(let s):       return s.piece == piece && s.axis == axis
+        case .spin(let s):         return s.piece == piece && s.axis == axis
+        case .spinDown(let s):     return s.piece == piece && s.axis == axis
+        default:                   return false
+        }
+    }
+
+    public static func animationMatchesTranslation(_ anim: UnitScript.Animation, piece: Int, axis: UnitScript.Axis) -> Bool {
+        if case .translation(let t) = anim { return t.piece == piece && t.axis == axis }
+        return false
     }
     
     func findSpinAnimation(of piece: Int, around axis: UnitScript.Axis) -> (index: Int, spin: UnitScript.SpinAnimation)? {

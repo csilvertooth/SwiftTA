@@ -13,10 +13,11 @@ class UnitViewController: NSViewController {
     
     private(set) var viewState = UnitViewState()
     private var unitView: UnitViewLoader!
-    
+
     private var unit: UnitInstance?
     private var loadTime: Double = 0
     private var shouldStartMoving = false
+    private var lastScriptHeartbeat: Double = 0
     
     override func loadView() {
         let defaultFrame = NSRect(x: 0, y: 0, width: 640, height: 480)
@@ -92,8 +93,14 @@ class UnitViewController: NSViewController {
     var playbackSpeed: Float { viewState.playbackSpeed }
 
     func startScript(_ name: String) {
-        guard var unit = unit else { return }
+        guard var unit = unit else {
+            Swift.print("startScript(\(name)) skipped: no loaded unit")
+            return
+        }
+        let before = unit.scriptContext.threads.count
         unit.scriptContext.startScript(name)
+        let after = unit.scriptContext.threads.count
+        Swift.print("startScript(\(name)): threads \(before) -> \(after), module found: \(unit.script.module(named: name) != nil), playbackSpeed=\(viewState.playbackSpeed)")
         self.unit = unit
     }
 
@@ -204,6 +211,14 @@ extension UnitViewController: UnitViewStateProvider {
             return
         }
         let scaledDelta = deltaTime * Double(speed)
+
+        // Emit a per-second heartbeat so we can tell whether scripts are
+        // advancing at all. Logs thread count + queued animation count.
+        let now = Date.timeIntervalSinceReferenceDate
+        if now - lastScriptHeartbeat > 1.0 {
+            lastScriptHeartbeat = now
+            Swift.print("script heartbeat: threads=\(unit.scriptContext.threads.count), anims=\(unit.scriptContext.animations.count), playbackSpeed=\(speed)")
+        }
 
         if shouldStartMoving && getTime() > loadTime + 1 {
             unit.scriptContext.startScript("StartMoving")
