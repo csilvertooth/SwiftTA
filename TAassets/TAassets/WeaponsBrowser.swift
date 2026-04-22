@@ -97,25 +97,70 @@ class WeaponsBrowserViewController: NSViewController, ContentViewController {
 
     override func viewDidLoad() {
         let begin = Date()
-        let weaponsDir = shared.filesystem.root[directory: "weapons"] ?? FileSystem.Directory()
-        let tdfFiles = weaponsDir.allFiles(withExtension: "tdf")
+
+        // Gather every top-level directory whose name starts with "weapon"
+        // (weapons, weaponE, weaponsE, etc.) to cover mod layouts.
+        let weaponDirs: [FileSystem.Directory] = shared.filesystem.root.items.compactMap { item in
+            guard case .directory(let d) = item,
+                  d.name.lowercased().hasPrefix("weapon") else { return nil }
+            return d
+        }
+
+        let tdfFiles = weaponDirs.flatMap { $0.allFiles(withExtension: "tdf") }
+        if weaponDirs.isEmpty {
+            print("Weapons: no weapon directories found in filesystem root")
+        } else {
+            print("Weapons: scanning \(weaponDirs.map { $0.name }.joined(separator: ", ")) (\(tdfFiles.count) TDFs)")
+        }
+
         var all: [WeaponInfo] = []
         var seen = Set<String>()
         for file in tdfFiles {
             guard let handle = try? shared.filesystem.openFile(file) else { continue }
             let parser = TdfParser(handle)
-            let entries = parser.extractObject(normalizeKeys: true)
-            for (key, object) in entries.subobjects {
-                let lowerKey = key.lowercased()
-                guard seen.insert(lowerKey).inserted else { continue }
-                all.append(WeaponInfo(from: object, key: key, sourceFile: file.name))
-            }
+            let root = parser.extractObject(normalizeKeys: true)
+            WeaponsBrowserViewController.collectWeapons(from: root, sourceFile: file.name, into: &all, seen: &seen)
         }
         all.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         self.allWeapons = all
         self.weapons = all
         let end = Date()
-        print("Weapons list load time: \(end.timeIntervalSince(begin)) seconds; weapons found: \(all.count) from \(tdfFiles.count) TDFs")
+        print("Weapons list load time: \(end.timeIntervalSince(begin)) seconds; weapons found: \(all.count) from \(tdfFiles.count) TDFs across \(weaponDirs.count) dir(s)")
+    }
+
+    /// Walks a parsed TDF tree looking for blocks that look like weapon definitions.
+    /// A block is treated as a weapon if it has any of the hallmark properties
+    /// (`weapontype`, `range`, `weaponvelocity`, `name` alongside damage data, etc.)
+    /// or if it contains a `damage` subobject. Otherwise the walker descends into
+    /// nested subobjects so container blocks like `[WEAPONDEFS]` don't hide content.
+    private static func collectWeapons(from object: TdfParser.Object,
+                                        sourceFile: String,
+                                        into results: inout [WeaponInfo],
+                                        seen: inout Set<String>) {
+        for (key, sub) in object.subobjects {
+            let lowerKey = key.lowercased()
+            if looksLikeWeapon(sub) {
+                guard seen.insert(lowerKey).inserted else { continue }
+                results.append(WeaponInfo(from: sub, key: key, sourceFile: sourceFile))
+            } else if !sub.subobjects.isEmpty {
+                collectWeapons(from: sub, sourceFile: sourceFile, into: &results, seen: &seen)
+            }
+        }
+    }
+
+    private static func looksLikeWeapon(_ object: TdfParser.Object) -> Bool {
+        let weaponishKeys: Set<String> = [
+            "weapontype", "range", "weaponvelocity", "weaponlaserdef",
+            "reloadtime", "accuracy", "areaofeffect", "energypershot",
+            "metalpershot", "explosiongaf", "startvelocity", "lineofsight"
+        ]
+        for key in object.properties.keys where weaponishKeys.contains(key.lowercased()) {
+            return true
+        }
+        if object.subobjects.keys.contains(where: { $0.lowercased() == "damage" }) {
+            return true
+        }
+        return false
     }
 
     @objc private func searchFieldChanged(_ sender: NSSearchField) {

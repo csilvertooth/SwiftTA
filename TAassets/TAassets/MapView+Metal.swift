@@ -112,7 +112,11 @@ class MetalMapView: NSView, MapViewLoader, MTKViewDelegate {
         let endTnt = Date()
         
         let beginFeatures = Date()
-        try? featureRenderer.loadFeatures(containedIn: map, startingWith: info.planet, from: filesystem)
+        do {
+            try featureRenderer.loadFeatures(containedIn: map, startingWith: info.planet, from: filesystem)
+        } catch {
+            Swift.print("Warning: feature loading failed for \(mapName): \(error). Maps often need TA_Features_2013.ccx (or equivalent feature pack) present alongside the base archives.")
+        }
         let endFeatures = Date()
         
         let endMap = Date()
@@ -196,10 +200,14 @@ class MetalMapView: NSView, MapViewLoader, MTKViewDelegate {
     }
     
     func draw(in view: MTKView) {
-        
+
+        // Always refresh the viewport from the current clip view so scrolling stays
+        // in sync even if a bounds-changed notification is missed across map swaps.
+        viewState.viewport = Rect4f(scrollView.contentView.bounds)
+
         guard let commandBuffer = commandQueue.makeCommandBuffer() else { return }
         defer { commandBuffer.commit() }
-        
+
         tntRenderer?.setupNextFrame(viewState, commandBuffer)
         featureRenderer.setupNextFrame(viewState)
         
