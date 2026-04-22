@@ -262,3 +262,22 @@ let sceneWidthNeeded = max(modelDiameter, modelDiameter / aspectRatio)
 ```
 
 So `sceneHeight = sceneWidthNeeded * aspectRatio >= modelDiameter` is guaranteed regardless of the viewport aspect. On load the full unit is always visible before the user zooms in.
+
+## Multi-root 3DOs ([SwiftTA-Core/Sources/SwiftTA-Core/UnitModel.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitModel.swift))
+
+The 3DO parser already accumulates every sibling offset starting at byte 0 into `ModelData.roots`, but `UnitModel.init` only kept the first:
+
+```swift
+root = model.roots.first!
+```
+
+Everything downstream — vertex collection, piece transforms, piece-hierarchy outline, the `maxWorldExtent` auto-fit — walked from `model.root` and therefore ignored every other root's subtree. Several TAESC mod units (confirmed with `CORMKL`, the Core mechanical spider) keep their legs on sibling roots, so the body would render cleanly while the legs vanished.
+
+Fix: expose `roots: [Pieces.Index]` on `UnitModel` and have each renderer iterate it instead of the single `root`. Specifically:
+
+- TAassets' [`MetalModel`](TAassets/TAassets/UnitViewRenderer+Metal.swift) walks every root during vertex, outline, and transform collection.
+- HPIView's [`MetalModel`](HPIView/HPIView/ModelViewRenderer+Metal.swift) walks every root during vertex and outline collection.
+- The [piece-hierarchy outline](TAassets/TAassets/PieceHierarchyView.swift) creates one top-level node per root.
+- [`UnitModel.maxWorldExtent`](SwiftTA-Core/Sources/SwiftTA-Core/UnitModel+Bounds.swift) accumulates bounds across every root so the auto-fit considers pieces on secondary subtrees.
+
+Also adds a startup print of per-unit piece/primitive/script-module counts and the full piece name list in [TAassets/TAassets/UnitBrowser.swift](TAassets/TAassets/UnitBrowser.swift). Future "X is missing its Y" reports can be diagnosed directly from `/tmp/taassets.log`.
