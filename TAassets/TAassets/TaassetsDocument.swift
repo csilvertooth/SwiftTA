@@ -229,7 +229,7 @@ class TaassetsViewController: NSViewController {
         case unitsButton:
             showSelectedContent(controller: UnitBrowserViewController())
         case weaponsButton:
-            showSelectedContent(controller: EmptyContentViewController())
+            showSelectedContent(controller: WeaponsBrowserViewController())
         case mapsButton:
             showSelectedContent(controller: MapBrowserViewController())
         case filesButton:

@@ -12,7 +12,11 @@ import simd
 import SwiftTA_Core
 
 private let screenTileSize = 512
-private let maximumDisplaySize = Size2<Int>(width: 4096, height: 4096)
+// Budget for on-screen map surface (not the map's native size). A larger value
+// costs VRAM: each slice is 512×512 BGRA8 = 1 MB, so 16×16 slices = 256 MB.
+// 8192² covers most 4K-class Retina displays at 1× zoom without falling back
+// to the slice-0 placeholder. Larger maps scroll through this window.
+private let maximumDisplaySize = Size2<Int>(width: 8192, height: 8192)
 private let maximumGridSize = maximumDisplaySize / screenTileSize
 private let maxBuffersInFlight = 3
 
@@ -473,7 +477,14 @@ private func prefillGridVertices(_ vertexBuffer: MTLBuffer, _ vertexCount: Int, 
 }
 
 private func computeTileGrid(for rect: Rect4f, boundedBy bounds: Rect4<Int>) -> Rect4<Int> {
-    return rect.computeGrid(division: GameFloat(screenTileSize)).clamp(within: bounds)
+    let raw = rect.computeGrid(division: GameFloat(screenTileSize)).clamp(within: bounds)
+    // Never ask the tile pool for more slices than it has; the screenTiles
+    // texture-2d-array is sized to maximumGridSize.area and the index/slice
+    // buffers are sized to that too, so any overflow writes past the buffer.
+    let clampedWidth = min(raw.size.width, maximumGridSize.width)
+    let clampedHeight = min(raw.size.height, maximumGridSize.height)
+    return Rect4<Int>(origin: raw.origin,
+                      size: Size2<Int>(width: clampedWidth, height: clampedHeight))
 }
 
 private extension Rect4 where Element: BinaryFloatingPoint {
