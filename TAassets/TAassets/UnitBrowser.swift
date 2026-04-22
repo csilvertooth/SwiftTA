@@ -323,7 +323,8 @@ class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate, Pl
     }
 
     func load(_ unit: UnitInfo) throws {
-        unitTitle = unit.object
+        unitTitle = unit.object.isEmpty ? unit.name : unit.object
+        container.detailLabel.stringValue = Self.describe(unit)
         let modelFile = try shared.filesystem.openFile(at: "objects3d/" + unit.object + ".3DO")
         let model = try UnitModel(contentsOf: modelFile)
         let scriptFile = try shared.filesystem.openFile(at: "scripts/" + unit.object + ".COB")
@@ -341,6 +342,21 @@ class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate, Pl
         unitView.clear()
         pieceView.clear()
         playbackControls.reset(scriptFunctions: [])
+        container.titleLabel.stringValue = ""
+        container.detailLabel.stringValue = ""
+    }
+
+    private static func describe(_ unit: UnitInfo) -> String {
+        var parts: [String] = []
+        if !unit.title.isEmpty { parts.append(unit.title) }
+        if !unit.description.isEmpty { parts.append(unit.description) }
+        if !unit.side.isEmpty { parts.append(unit.side) }
+        if !unit.tedClass.isEmpty { parts.append(unit.tedClass) }
+        parts.append("footprint \(unit.footprint.width)×\(unit.footprint.height)")
+        if unit.maxVelocity > 0 {
+            parts.append(String(format: "speed %.1f", Double(unit.maxVelocity)))
+        }
+        return parts.joined(separator: " · ")
     }
 
     private func resolvePalette(for unit: UnitInfo) -> Palette {
@@ -391,6 +407,7 @@ class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate, Pl
     private class ContainerView: NSView {
 
         unowned let titleLabel: NSTextField
+        unowned let detailLabel: NSTextField
         let emptyContentView: NSView
         let pieceAccessory: NSView
 
@@ -412,30 +429,43 @@ class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate, Pl
         }
 
         init(frame frameRect: NSRect, pieceAccessory: NSView) {
-            let titleLabel = NSTextField(labelWithString: "Title")
-            titleLabel.font = NSFont.systemFont(ofSize: 18)
+            let titleLabel = NSTextField(labelWithString: "")
+            titleLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
             titleLabel.textColor = NSColor.labelColor
+            titleLabel.lineBreakMode = .byTruncatingMiddle
+
+            let detailLabel = NSTextField(labelWithString: "")
+            detailLabel.font = NSFont.systemFont(ofSize: 11)
+            detailLabel.textColor = NSColor.secondaryLabelColor
+            detailLabel.lineBreakMode = .byTruncatingTail
+
             let contentBox = NSView(frame: NSRect(x: 0, y: 0, width: 32, height: 32))
 
             self.titleLabel = titleLabel
+            self.detailLabel = detailLabel
             self.emptyContentView = contentBox
             self.pieceAccessory = pieceAccessory
             super.init(frame: frameRect)
 
             addSubview(contentBox)
             addSubview(titleLabel)
+            addSubview(detailLabel)
             pieceAccessory.translatesAutoresizingMaskIntoConstraints = false
             addSubview(pieceAccessory)
 
             contentBox.translatesAutoresizingMaskIntoConstraints = false
             titleLabel.translatesAutoresizingMaskIntoConstraints = false
+            detailLabel.translatesAutoresizingMaskIntoConstraints = false
 
             addContentViewConstraints(contentBox)
             NSLayoutConstraint.activate([
-                titleLabel.centerXAnchor.constraint(equalTo: self.centerXAnchor),
+                titleLabel.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 8),
+                titleLabel.topAnchor.constraint(equalTo: self.topAnchor, constant: 6),
+                detailLabel.leadingAnchor.constraint(equalTo: titleLabel.trailingAnchor, constant: 12),
+                detailLabel.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
+                detailLabel.firstBaselineAnchor.constraint(equalTo: titleLabel.firstBaselineAnchor),
                 pieceAccessory.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 8),
                 pieceAccessory.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
-                pieceAccessory.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
                 pieceAccessory.bottomAnchor.constraint(equalTo: self.bottomAnchor, constant: -8),
             ])
         }
@@ -448,9 +478,9 @@ class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate, Pl
             NSLayoutConstraint.activate([
                 contentBox.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 8),
                 contentBox.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
-                contentBox.topAnchor.constraint(equalTo: self.topAnchor, constant: 8),
+                contentBox.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
                 contentBox.heightAnchor.constraint(equalTo: self.heightAnchor, multiplier: 0.55),
-                titleLabel.topAnchor.constraint(equalTo: contentBox.bottomAnchor, constant: 8),
+                pieceAccessory.topAnchor.constraint(equalTo: contentBox.bottomAnchor, constant: 6),
                 ])
         }
 

@@ -169,12 +169,19 @@ class TaassetsViewController: NSViewController {
         super.viewWillAppear()
 
         applySidebarIcons()
+        applySidebarSpacing()
 
         // There will be nothing selected the first time this view appears.
         // Select a default in this case.
         if selectedButton == nil {
             unitsButton.state = .on
             didChangeSelection(unitsButton)
+        }
+    }
+
+    private func applySidebarSpacing() {
+        if let stack = unitsButton.superview as? NSStackView {
+            stack.edgeInsets = NSEdgeInsets(top: 28, left: 0, bottom: 8, right: 0)
         }
     }
 
