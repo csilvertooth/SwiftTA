@@ -425,11 +425,26 @@ extension HpiBrowserViewController {
     }
     
     @IBAction func extractAll(sender: Any?) {
-        
+
+        guard let window = hpiDocument.windowForSheet
+            else { Swift.print("Document has no windowForSheet."); return }
+
+        let items = hpiDocument.filesystem.root.items.map { HpiItem($0) }
+        guard items.count > 0
+            else { Swift.print("Archive is empty; nothing to extract."); return }
+
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
-        
+        panel.canCreateDirectories = true
+        panel.beginSheetModal(for: window) {
+            switch $0 {
+            case .OK:
+                if let url = panel.url { self.extractItems(items, to: url) }
+            default:
+                ()
+            }
+        }
     }
     
     func extractItems(_ items: [HpiItem], to rootDirectory: URL) {

@@ -4,6 +4,7 @@
 
 ### Misc Files Directory ###
 /Files
+/build-logs
 
 ### Objective-C ###
 # Xcode
