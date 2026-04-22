@@ -12,7 +12,16 @@ import simd
 import SwiftTA_Core
 
 class BasicMetalUnitViewRenderer {
-    
+
+    // Keep in sync with `pieces[<N>]` in UnitViewRenderer+MetalShaderTypes.h.
+    fileprivate static let maxPieceMatrices = 128
+
+    private static var overflowWarnedCounts = Set<Int>()
+    fileprivate static func logPieceOverflowOnce(requested: Int, capacity: Int) {
+        guard overflowWarnedCounts.insert(requested).inserted else { return }
+        Swift.print("Warning: unit has \(requested) pieces but the Metal uniform only fits \(capacity); extra pieces will fall back to the first matrix and may render in the wrong spot.")
+    }
+
     let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let uniformBuffer: MTLBuffer
@@ -88,7 +97,11 @@ extension BasicMetalUnitViewRenderer: MetalUnitViewRenderer {
         
         if let model = model {
             let pieceMats = uniformBuffer.contents() + (modelUniformOffset + (MemoryLayout<UnitMetalRenderer_ModelUniforms>.offset(of: \UnitMetalRenderer_ModelUniforms.pieces) ?? 0))
-            let count = model.transformations.count
+            let capacity = BasicMetalUnitViewRenderer.maxPieceMatrices
+            let count = min(model.transformations.count, capacity)
+            if model.transformations.count > capacity {
+                BasicMetalUnitViewRenderer.logPieceOverflowOnce(requested: model.transformations.count, capacity: capacity)
+            }
             model.transformations.withUnsafeBytes() {
                 pieceMats.copyMemory(from: $0.baseAddress!, byteCount: MemoryLayout<matrix_float4x4>.stride * count)
             }

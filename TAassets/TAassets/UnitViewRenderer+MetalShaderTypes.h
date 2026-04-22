@@ -67,7 +67,7 @@ typedef struct
     vector_float4 objectColor;
     vector_float3 lightPosition;
     vector_float3 viewPosition;
-    matrix_float4x4 pieces[40];
+    matrix_float4x4 pieces[128];
     int highlightedPieceIndex;
 } UnitMetalRenderer_ModelUniforms;
 

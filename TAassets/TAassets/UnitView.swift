@@ -108,8 +108,14 @@ class UnitViewController: NSViewController {
     private func computeSceneSize() {
         let footprintWidth = GameFloat( ((unit?.info.footprint.width ?? 2) + 8) * ModelViewState.gridSize )
         let extent = viewState.model?.maxWorldExtent ?? 0
-        let extentFit = extent * 2.3
-        let baseWidth = max(footprintWidth, extentFit)
+        // Model fits in a box of side 2·extent centered at the origin. Add 20%
+        // margin, then pick a scene width that also guarantees the scene height
+        // (= sceneWidth·aspectRatio) is big enough to hold the full box. Without
+        // the aspectRatio divisor a very wide window would crop tall mod units.
+        let modelDiameter = extent * 2.4
+        let aspectRatio = max(GameFloat(0.1), viewState.aspectRatio)
+        let sceneWidthNeeded = max(modelDiameter, modelDiameter / aspectRatio)
+        let baseWidth = max(footprintWidth, sceneWidthNeeded)
         let w = (baseWidth > 0 ? baseWidth : footprintWidth) / GameFloat(viewState.zoom)
         viewState.sceneSize = Size2f(width: w, height: w * viewState.aspectRatio)
     }
