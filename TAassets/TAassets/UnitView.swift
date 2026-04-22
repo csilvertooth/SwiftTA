@@ -45,6 +45,7 @@ class UnitViewController: NSViewController {
         viewState.rotateY = 0
         viewState.rotateZ = 160
         viewState.highlightedPieceIndex = -1
+        viewState.playbackSpeed = 1.0
 
         let newUnit = UnitInstance(
             info: info,
@@ -78,6 +79,30 @@ class UnitViewController: NSViewController {
 
     func setHighlightedPiece(_ index: UnitModel.Pieces.Index?) {
         viewState.highlightedPieceIndex = index.map(Int32.init) ?? -1
+    }
+
+    var availableScriptFunctions: [String] {
+        unit?.script.modules.map { $0.name } ?? []
+    }
+
+    func setPlaybackSpeed(_ speed: Float) {
+        viewState.playbackSpeed = max(0, min(4, speed))
+    }
+
+    var playbackSpeed: Float { viewState.playbackSpeed }
+
+    func startScript(_ name: String) {
+        guard var unit = unit else { return }
+        unit.scriptContext.startScript(name)
+        self.unit = unit
+    }
+
+    func stepOnce(by duration: Double = 1.0 / 30.0) {
+        guard var unit = unit else { return }
+        unit.scriptContext.run(for: unit.modelInstance, on: self)
+        unit.scriptContext.applyAnimations(to: &unit.modelInstance, for: GameFloat(duration))
+        viewState.modelInstance = unit.modelInstance
+        self.unit = unit
     }
     
     private func computeSceneSize() {
@@ -165,35 +190,43 @@ extension UnitViewController: UnitViewStateProvider {
     
     func updateAnimatingState(deltaTime: Double) {
         guard var unit = unit else { return }
-        
+
+        let speed = viewState.playbackSpeed
+        if speed <= 0 {
+            viewState.modelInstance = unit.modelInstance
+            self.unit = unit
+            return
+        }
+        let scaledDelta = deltaTime * Double(speed)
+
         if shouldStartMoving && getTime() > loadTime + 1 {
             unit.scriptContext.startScript("StartMoving")
             shouldStartMoving = false
             viewState.isMoving = true
             viewState.speed = 0
         }
-        
+
         unit.scriptContext.run(for: unit.modelInstance, on: self)
-        unit.scriptContext.applyAnimations(to: &unit.modelInstance, for: GameFloat(deltaTime))
-        
+        unit.scriptContext.applyAnimations(to: &unit.modelInstance, for: GameFloat(scaledDelta))
+
         if viewState.isMoving {
-            let dt = GameFloat(deltaTime * 10)
+            let dt = GameFloat(scaledDelta * 10)
             let acceleration = unit.info.acceleration
             let maxSpeed = unit.info.maxVelocity
-            var speed = viewState.speed
-            
-            if speed < maxSpeed {
-                speed = min(speed + dt * acceleration, maxSpeed)
+            var currentSpeed = viewState.speed
+
+            if currentSpeed < maxSpeed {
+                currentSpeed = min(currentSpeed + dt * acceleration, maxSpeed)
             }
-            viewState.movement += dt * speed
-            viewState.speed = speed
-            
+            viewState.movement += dt * currentSpeed
+            viewState.speed = currentSpeed
+
             let gridSize = GameFloat(UnitViewState.gridSize)
             if viewState.movement > gridSize {
                 viewState.movement -= gridSize
             }
         }
-        
+
         viewState.modelInstance = unit.modelInstance
         self.unit = unit
     }
@@ -229,6 +262,7 @@ struct UnitViewState {
 
     var zoom: Float = 1.0
     var highlightedPieceIndex: Int32 = -1
+    var playbackSpeed: Float = 1.0
 
     var isMoving = false
     var speed: GameFloat = 0

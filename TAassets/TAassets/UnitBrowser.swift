@@ -126,7 +126,7 @@ extension UnitBrowserViewController: NSTableViewDelegate {
             if !isShowingDetail {
                 let controller = detailViewController
                 controller.view.frame = detailViewContainer.bounds
-                controller.view.autoresizingMask = [.width, .width]
+                controller.view.autoresizingMask = [.width, .height]
                 addChild(controller)
                 detailViewContainer.addSubview(controller.view)
                 isShowingDetail = true
@@ -228,14 +228,25 @@ extension UnitBrowserSharedState {
     }
 }
 
-class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate {
+class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate, PlaybackControlsViewDelegate {
 
     var shared = UnitBrowserSharedState.empty
     let unitView = UnitViewController()
     let pieceView = PieceHierarchyView(frame: .zero)
+    let playbackControls = PlaybackControlsView(frame: .zero)
 
     func pieceHierarchyView(_ view: PieceHierarchyView, didSelectPieceAt index: UnitModel.Pieces.Index?) {
         unitView.setHighlightedPiece(index)
+    }
+
+    func playbackControls(_ view: PlaybackControlsView, didChangeSpeed speed: Float) {
+        unitView.setPlaybackSpeed(speed)
+    }
+    func playbackControlsDidRequestStep(_ view: PlaybackControlsView) {
+        unitView.stepOnce()
+    }
+    func playbackControls(_ view: PlaybackControlsView, didChooseScript name: String) {
+        unitView.startScript(name)
     }
 
     func load(_ unit: UnitInfo) throws {
@@ -248,6 +259,7 @@ class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate {
         let palette = try Palette.texturePalette(for: unit, in: shared.sides, from: shared.filesystem)
         try unitView.load(unit, model, script, atlas, shared.filesystem, palette)
         pieceView.apply(model: model, script: script)
+        playbackControls.reset(scriptFunctions: unitView.availableScriptFunctions)
 
         //try tempSaveAtlasToFile(atlas, palette)
     }
@@ -255,6 +267,7 @@ class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate {
     func clear() {
         unitView.clear()
         pieceView.clear()
+        playbackControls.reset(scriptFunctions: [])
     }
     
     private func tempSaveAtlasToFile(_ atlas: UnitTextureAtlas, _ palette: Palette) throws {
@@ -361,13 +374,27 @@ class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate {
     }
 
     override func loadView() {
+        let stack = NSStackView(views: [playbackControls, pieceView])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.distribution = .fill
+        stack.spacing = 4
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.setHuggingPriority(.required, for: .vertical)
+        pieceView.translatesAutoresizingMaskIntoConstraints = false
+        playbackControls.translatesAutoresizingMaskIntoConstraints = false
+        stack.arrangedSubviews.forEach {
+            $0.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
+
         let container = ContainerView(frame: NSRect(x: 0, y: 0, width: 256, height: 512),
-                                      pieceAccessory: pieceView)
+                                      pieceAccessory: stack)
         self.view = container
 
         addChild(unitView)
         container.contentView = unitView.view
         pieceView.selectionDelegate = self
+        playbackControls.delegate = self
     }
     
 }
