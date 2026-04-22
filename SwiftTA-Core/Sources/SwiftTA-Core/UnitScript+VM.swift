@@ -286,7 +286,11 @@ public extension UnitScript.Thread.Stack {
         guard n > 0 else { return [] }
         if _array.count >= n {
             defer { _array.removeLast(n) }
-            return Array( _array.suffix(from: n-1) )
+            // Return the last n elements (top of stack), in bottom-to-top order.
+            // The previous implementation used `suffix(from: n - 1)` which only
+            // happens to return n elements when the stack has exactly 2·n - 1
+            // items, and silently returned the wrong count the rest of the time.
+            return Array(_array.suffix(n))
         }
         else { throw Error.stackUnderflow }
     }

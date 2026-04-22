@@ -703,11 +703,13 @@ private func getFunctionResult(execution: ScriptExecutionContext) throws {
         switch uv {
         case .pieceXZ:
             if let offset = pieceStaticOffset(scriptPiece: params[0], execution: execution) {
-                result = packXZ(x: offset.x, z: offset.z)
+                // UnitModel remaps 3DO (x, y, z) → SIMD (x, z, y) so offset.y is TA's Z
+                // (horizontal depth) and offset.z is TA's Y (vertical height).
+                result = packXZ(x: offset.x, z: offset.y)
             }
         case .pieceY:
             if let offset = pieceStaticOffset(scriptPiece: params[0], execution: execution) {
-                result = _StackValue(offset.y)
+                result = _StackValue(offset.z)
             }
         case .xzAtan:
             let (x, z) = unpackXZ(params[0])
