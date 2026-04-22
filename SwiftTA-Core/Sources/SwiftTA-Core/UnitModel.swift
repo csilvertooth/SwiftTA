@@ -17,6 +17,7 @@ public struct UnitModel {
     public typealias Textures = Array<Texture>
     
     public var pieces: Pieces
+    public var roots: [Pieces.Index] = []
     public var primitives: Primitives
     public var vertices: Vertices
     public var textures: Textures
@@ -40,6 +41,7 @@ public struct UnitModel {
         textures = model.textures
         
         root = model.roots.first!
+        roots = model.roots
         groundPlate = model.groundPlate
         
         var names: [String: Pieces.Index] = [:]

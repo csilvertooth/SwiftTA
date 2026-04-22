@@ -244,9 +244,14 @@ private class MetalModel {
         buffer.label = "UnitModel"
         
         var p = UnsafeMutableRawPointer(buffer.contents()).bindMemory(to: ModelMetalRenderer_ModelVertex.self, capacity: vertexCount)
-        MetalModel.collectVertexAttributes(pieceIndex: model.root, model: model, vertexBuffer: &p)
+        let rootsToVisit: [UnitModel.Pieces.Index] = model.roots.isEmpty ? [model.root] : model.roots
+        for rootIndex in rootsToVisit {
+            MetalModel.collectVertexAttributes(pieceIndex: rootIndex, model: model, vertexBuffer: &p)
+        }
         p = (UnsafeMutableRawPointer(buffer.contents()) + vertexSize).bindMemory(to: ModelMetalRenderer_ModelVertex.self, capacity: outlineCount)
-        MetalModel.collectOutlineVertexAttributes(pieceIndex: model.root, model: model, vertexBuffer: &p)
+        for rootIndex in rootsToVisit {
+            MetalModel.collectOutlineVertexAttributes(pieceIndex: rootIndex, model: model, vertexBuffer: &p)
+        }
         
         self.buffer = buffer
         self.vertexCount = vertexCount

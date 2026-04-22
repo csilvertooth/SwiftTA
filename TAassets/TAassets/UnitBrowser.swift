@@ -331,6 +331,11 @@ class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate, Pl
         let script = try UnitScript(contentsOf: scriptFile)
         let atlas = UnitTextureAtlas(for: model.textures, from: shared.textures)
         let palette = resolvePalette(for: unit)
+
+        let pieceNames = model.pieces.enumerated().map { "[\($0.offset)]\($0.element.name)" }.joined(separator: " ")
+        print("Unit \(unit.object): \(model.pieces.count) pieces, \(model.primitives.count) primitives, \(script.modules.count) script modules")
+        print("  pieces: \(pieceNames)")
+
         try unitView.load(unit, model, script, atlas, shared.filesystem, palette)
         pieceView.apply(model: model, script: script)
         playbackControls.reset(scriptFunctions: unitView.availableScriptFunctions)

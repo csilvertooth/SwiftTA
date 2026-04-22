@@ -312,9 +312,14 @@ private class MetalModel {
         buffer.label = "UnitModel"
         
         var p = UnsafeMutableRawPointer(buffer.contents()).bindMemory(to: UnitMetalRenderer_ModelVertex.self, capacity: vertexCount)
-        MetalModel.collectVertexAttributes(pieceIndex: model.root, model: model, textures: textures, vertexBuffer: &p)
+        let rootsToVisit: [UnitModel.Pieces.Index] = model.roots.isEmpty ? [model.root] : model.roots
+        for rootIndex in rootsToVisit {
+            MetalModel.collectVertexAttributes(pieceIndex: rootIndex, model: model, textures: textures, vertexBuffer: &p)
+        }
         p = (UnsafeMutableRawPointer(buffer.contents()) + vertexSize).bindMemory(to: UnitMetalRenderer_ModelVertex.self, capacity: outlineCount)
-        MetalModel.collectOutlineVertexAttributes(pieceIndex: model.root, model: model, vertexBuffer: &p)
+        for rootIndex in rootsToVisit {
+            MetalModel.collectOutlineVertexAttributes(pieceIndex: rootIndex, model: model, vertexBuffer: &p)
+        }
         
         self.buffer = buffer
         self.vertexCount = vertexCount
@@ -496,7 +501,10 @@ private extension MetalModel {
     }
     
     static func applyPieceTransformations(model: UnitModel, instance: UnitModel.Instance, transformations: inout [matrix_float4x4]) {
-        applyPieceTransformations(pieceIndex: model.root, p: matrix_float4x4.identity, model: model, instance: instance, transformations: &transformations)
+        let rootsToVisit: [UnitModel.Pieces.Index] = model.roots.isEmpty ? [model.root] : model.roots
+        for rootIndex in rootsToVisit {
+            applyPieceTransformations(pieceIndex: rootIndex, p: matrix_float4x4.identity, model: model, instance: instance, transformations: &transformations)
+        }
     }
     
     static func applyPieceTransformations(pieceIndex: UnitModel.Pieces.Index, p: matrix_float4x4, model: UnitModel, instance: UnitModel.Instance, transformations: inout [matrix_float4x4]) {

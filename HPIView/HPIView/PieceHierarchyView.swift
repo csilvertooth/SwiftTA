@@ -85,7 +85,8 @@ final class PieceHierarchyView: NSView {
                 refsByModelIndex[modelIdx] = byModule.joined(separator: " ")
             }
         }
-        nodes = [Node(index: model.root, model: model, refs: refsByModelIndex)]
+        let rootsToVisit: [UnitModel.Pieces.Index] = model.roots.isEmpty ? [model.root] : model.roots
+        nodes = rootsToVisit.map { Node(index: $0, model: model, refs: refsByModelIndex) }
         outline.reloadData()
         outline.expandItem(nil, expandChildren: true)
     }

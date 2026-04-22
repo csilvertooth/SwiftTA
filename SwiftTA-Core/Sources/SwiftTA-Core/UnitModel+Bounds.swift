@@ -11,7 +11,10 @@ public extension UnitModel {
     /// each piece's local offset is added to the accumulated parent offset.
     var maxWorldExtent: GameFloat {
         var extent: GameFloat = 0
-        accumulate(pieceIndex: root, parentOffset: .zero, into: &extent)
+        let rootsToVisit: [Pieces.Index] = roots.isEmpty ? [root] : roots
+        for rootIndex in rootsToVisit {
+            accumulate(pieceIndex: rootIndex, parentOffset: .zero, into: &extent)
+        }
         return extent
     }
 
