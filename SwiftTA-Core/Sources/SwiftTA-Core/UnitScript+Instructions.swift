@@ -657,22 +657,25 @@ private func taRandom(min: _StackValue, max: _StackValue) -> _StackValue {
  
  */
 private func getUnitValue(execution: ScriptExecutionContext) throws {
-    
+
     let what = try execution.thread.stack.pop()
+    var result: UnitScript.CodeUnit = 0
     if let uv = UnitScript.UnitValue(rawValue: what) {
-        // print("[\(execution.thread.id)] Get \(uv)")
         switch uv {
-        default: () // TODO: Do something with requested UnitValue here.
+        case .activation, .standingFireOrders, .armored:
+            result = 1
+        case .health:
+            result = 100
+        case .inBuildStance, .busy, .yardOpen, .buggerOff:
+            result = 0
+        case .unitXZ, .unitY, .unitHeight, .groundHeight:
+            result = 0
+        default:
+            ()
         }
     }
-    else {
-        // TODO: Do something with out-of-bounds UnitValue here.
-        print("[\(execution.thread.id)] Get Unit-Value[\(what)?]")
-    }
-    
-    // TODO: Implement getFunctionResult
-    execution.thread.stack.push(0)
-    
+    execution.thread.stack.push(result)
+
     execution.thread.instructionPointer += 1
 }
 
@@ -691,15 +694,74 @@ private func getUnitValue(execution: ScriptExecutionContext) throws {
  
  */
 private func getFunctionResult(execution: ScriptExecutionContext) throws {
-    
+
     let params: [_StackValue] = try execution.thread.stack.pop(count: 4).reversed()
     let what = try execution.thread.stack.pop()
-    
-    // TODO: Implement getFunctionResult
-    execution.thread.stack.push(0)
-    
-    print("[\(execution.thread.id)] Get Function[\(what)]\(params) Result ")
+
+    var result: _StackValue = 0
+    if let uv = UnitScript.UnitValue(rawValue: what) {
+        switch uv {
+        case .pieceXZ:
+            if let offset = pieceStaticOffset(scriptPiece: params[0], execution: execution) {
+                result = packXZ(x: offset.x, z: offset.z)
+            }
+        case .pieceY:
+            if let offset = pieceStaticOffset(scriptPiece: params[0], execution: execution) {
+                result = _StackValue(offset.y)
+            }
+        case .xzAtan:
+            let (x, z) = unpackXZ(params[0])
+            result = taAtan2(z: z, x: x)
+        case .xzHypot:
+            let (x, z) = unpackXZ(params[0])
+            result = taHypot(x: x, z: z)
+        case .atan:
+            result = taAtan2(z: GameFloat(params[1]), x: GameFloat(params[0]))
+        case .hypot:
+            result = taHypot(x: GameFloat(params[0]), z: GameFloat(params[1]))
+        case .unitXZ, .unitY, .unitHeight, .groundHeight:
+            result = 0
+        default:
+            ()
+        }
+    }
+    execution.thread.stack.push(result)
     execution.thread.instructionPointer += 1
+}
+
+private func pieceStaticOffset(scriptPiece: UnitScript.CodeUnit, execution: ScriptExecutionContext) -> Vertex3f? {
+    guard let modelIndex = try? execution.process.pieceIndex(at: scriptPiece) else { return nil }
+    let model = execution.process.model
+    guard modelIndex < model.parents.count else { return nil }
+    return model.pieceStaticOffset(modelIndex)
+}
+
+private func packXZ(x: GameFloat, z: GameFloat) -> UnitScript.CodeUnit {
+    // TA packs the XZ coordinate as (x << 16) | (z & 0xFFFF), both as 16-bit
+    // signed values. Piece offsets fit comfortably in 16 bits for normal units.
+    let xi = max(-32768, min(32767, Int(x.rounded()))) & 0xFFFF
+    let zi = max(-32768, min(32767, Int(z.rounded()))) & 0xFFFF
+    return UnitScript.CodeUnit(truncatingIfNeeded: (xi << 16) | zi)
+}
+
+private func unpackXZ(_ packed: UnitScript.CodeUnit) -> (GameFloat, GameFloat) {
+    let xRaw = Int(packed) >> 16
+    var zRaw = Int(packed) & 0xFFFF
+    if zRaw >= 0x8000 { zRaw -= 0x10000 }
+    return (GameFloat(xRaw), GameFloat(zRaw))
+}
+
+/// TA represents a full turn as 65536 angle units. Returns atan2(z, x) remapped to that range.
+private func taAtan2(z: GameFloat, x: GameFloat) -> UnitScript.CodeUnit {
+    guard x != 0 || z != 0 else { return 0 }
+    let radians = atan2(z, x)
+    let turns = radians / (2 * .pi)
+    return UnitScript.CodeUnit(truncatingIfNeeded: Int((turns * 65536).rounded()))
+}
+
+private func taHypot(x: GameFloat, z: GameFloat) -> UnitScript.CodeUnit {
+    let h = hypot(x, z)
+    return UnitScript.CodeUnit(truncatingIfNeeded: Int(h.rounded()))
 }
 
 /**

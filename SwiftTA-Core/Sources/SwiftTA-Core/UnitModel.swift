@@ -18,6 +18,7 @@ public struct UnitModel {
     
     public var pieces: Pieces
     public var roots: [Pieces.Index] = []
+    public var parents: [[Pieces.Index]] = []
     public var primitives: Primitives
     public var vertices: Vertices
     public var textures: Textures
@@ -43,12 +44,41 @@ public struct UnitModel {
         root = model.roots.first!
         roots = model.roots
         groundPlate = model.groundPlate
-        
+
         var names: [String: Pieces.Index] = [:]
         for (index, piece) in pieces.enumerated() {
             names[piece.name.lowercased()] = index
         }
         nameLookup = names
+
+        var parents = Array<[Pieces.Index]>(repeating: [], count: pieces.count)
+        for rootIndex in roots {
+            UnitModel.populateParents(pieceIndex: rootIndex, ancestors: [], pieces: pieces, parents: &parents)
+        }
+        self.parents = parents
+    }
+
+    private static func populateParents(pieceIndex: Pieces.Index,
+                                        ancestors: [Pieces.Index],
+                                        pieces: Pieces,
+                                        parents: inout [[Pieces.Index]]) {
+        parents[pieceIndex] = ancestors
+        let next = ancestors + [pieceIndex]
+        for child in pieces[pieceIndex].children {
+            populateParents(pieceIndex: child, ancestors: next, pieces: pieces, parents: &parents)
+        }
+    }
+
+    /// World-space position of a piece assuming no animated translation — just the
+    /// sum of its ancestors' static piece offsets. Adequate for the IK queries that
+    /// Create/RestoreAfterDelay scripts use to position legs on spider bots.
+    public func pieceStaticOffset(_ index: Pieces.Index) -> Vertex3f {
+        var sum = Vertex3f.zero
+        for ancestor in parents[index] {
+            sum += pieces[ancestor].offset
+        }
+        sum += pieces[index].offset
+        return sum
     }
     
     public func piece(named name: String) -> Piece? {

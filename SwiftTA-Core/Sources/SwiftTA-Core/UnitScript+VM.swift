@@ -15,13 +15,15 @@ public extension UnitScript {
     
     class Context {
         public var script: UnitScript
+        public var model: UnitModel
         public var staticVariables: [UnitScript.CodeUnit]
         public var threads: [Thread]
         public var animations: [Animation]
         public var pieceMap: [UnitModel.Pieces.Index]
-        
+
         public init(_ script: UnitScript, _ model: UnitModel) throws {
             self.script = script
+            self.model = model
             staticVariables = Array<UnitScript.CodeUnit>(repeating: 0, count: script.numberOfStaticVariables)
             threads = []
             animations = []
@@ -32,7 +34,7 @@ public extension UnitScript {
                 return index
             }
         }
-        
+
     }
     
     class Thread {
