@@ -14,20 +14,33 @@ public class FileSystem {
     
     public static let weightedArchiveExtensions = ["ufo", "gp3", "ccx", "gpf", "hpi"]
     
-    public init(mergingHpisIn searchDirectory: URL, extensions: [String] = FileSystem.weightedArchiveExtensions) throws {
+    public init(mergingHpisIn searchDirectory: URL,
+                modDirectory: URL? = nil,
+                extensions: [String] = FileSystem.weightedArchiveExtensions) throws {
 
         let weighArchives: (URL, URL) -> Bool = { (a,b) in
             let weightA = extensions.firstIndex(of: a.pathExtension) ?? -1
             let weightB = extensions.firstIndex(of: b.pathExtension) ?? -1
             return weightA < weightB
         }
-        
-        let merged = try FileSystem.listArchives(in: searchDirectory, allowedExtensions: Set(extensions))
+
+        let baseArchives = try FileSystem.listArchives(in: searchDirectory, allowedExtensions: Set(extensions))
             .sorted { weighArchives($0, $1) }
+
+        let base = try baseArchives
             .map { FileSystem.Directory(from: try HpiItem.loadFromArchive(contentsOf: $0), in: $0) }
             .reduce(FileSystem.Directory()) { $0.adding(directory: $1) }
-        
-        root = merged
+
+        if let modDirectory = modDirectory {
+            let modArchives = try FileSystem.listArchives(in: modDirectory, allowedExtensions: Set(extensions))
+                .sorted { weighArchives($0, $1) }
+            let withMods = try modArchives
+                .map { FileSystem.Directory(from: try HpiItem.loadFromArchive(contentsOf: $0), in: $0) }
+                .reduce(base) { $0.adding(directory: $1, overwrite: true) }
+            root = withMods
+        } else {
+            root = base
+        }
     }
     
     #if !os(Linux)

@@ -20,6 +20,7 @@
 		B5C556841E3058A9001BEFAB /* HpiFinderRow.xib in Resources */ = {isa = PBXBuildFile; fileRef = B5C556831E3058A9001BEFAB /* HpiFinderRow.xib */; };
 		B5C5568F1E3437EF001BEFAB /* ModelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C5568E1E3437EF001BEFAB /* ModelView.swift */; };
 		B5C556911E353FC1001BEFAB /* UnitBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C556901E353FC1001BEFAB /* UnitBrowser.swift */; };
+		FACE0002000001000000FACE /* PieceHierarchyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0001000001000000FACE /* PieceHierarchyView.swift */; };
 		B5D432FA1F0995CC005B468E /* QuickLookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D432F91F0995CC005B468E /* QuickLookView.swift */; };
 		B5E26F381ED9F0ED006C329B /* GafView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5E26F371ED9F0ED006C329B /* GafView.swift */; };
 		B5E26F441EE3745F006C329B /* UnitView+Opengl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5E26F431EE3745F006C329B /* UnitView+Opengl.swift */; };
@@ -85,6 +86,7 @@
 		B5C556831E3058A9001BEFAB /* HpiFinderRow.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; name = HpiFinderRow.xib; path = ../../HPIView/HPIView/HpiFinderRow.xib; sourceTree = "<group>"; };
 		B5C5568E1E3437EF001BEFAB /* ModelView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ModelView.swift; path = ../../HPIView/HPIView/ModelView.swift; sourceTree = "<group>"; };
 		B5C556901E353FC1001BEFAB /* UnitBrowser.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UnitBrowser.swift; sourceTree = "<group>"; };
+		FACE0001000001000000FACE /* PieceHierarchyView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PieceHierarchyView.swift; sourceTree = "<group>"; };
 		B5D432F91F0995CC005B468E /* QuickLookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookView.swift; sourceTree = "<group>"; };
 		B5E26F371ED9F0ED006C329B /* GafView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = GafView.swift; path = ../../HPIView/HPIView/GafView.swift; sourceTree = "<group>"; };
 		B5E26F431EE3745F006C329B /* UnitView+Opengl.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "UnitView+Opengl.swift"; sourceTree = "<group>"; };
@@ -173,6 +175,7 @@
 				B5C556491E2C86A2001BEFAB /* AppDelegate.swift */,
 				B5C5564D1E2C86A2001BEFAB /* TaassetsDocument.swift */,
 				B5C556901E353FC1001BEFAB /* UnitBrowser.swift */,
+				FACE0001000001000000FACE /* PieceHierarchyView.swift */,
 				B5C5567F1E2F1262001BEFAB /* FileBrowser.swift */,
 				B5E26F4F1EE4813A006C329B /* MapBrowser.swift */,
 				B5C556811E2F1747001BEFAB /* FinderView.swift */,
@@ -360,6 +363,7 @@
 				F08A641D20EEAA47001E5982 /* ModelView+Opengl.swift in Sources */,
 				F0CD87CB20FFB5D60012B1C8 /* MapView+Cocoa.swift in Sources */,
 				B5C556911E353FC1001BEFAB /* UnitBrowser.swift in Sources */,
+				FACE0002000001000000FACE /* PieceHierarchyView.swift in Sources */,
 				F015C79820AE261400873642 /* UnitViewRenderer+OpenglLegacy.swift in Sources */,
 				B5E26F441EE3745F006C329B /* UnitView+Opengl.swift in Sources */,
 				F08A641920EEAA47001E5982 /* ModelViewRenderer+OpenglLegacy.swift in Sources */,

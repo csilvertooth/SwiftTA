@@ -40,7 +40,12 @@ class UnitViewController: NSViewController {
               _ texture: UnitTextureAtlas,
               _ filesystem: FileSystem,
               _ palette: Palette) throws {
-        
+        viewState.zoom = 1.0
+        viewState.rotateX = 0
+        viewState.rotateY = 0
+        viewState.rotateZ = 160
+        viewState.highlightedPieceIndex = -1
+
         let newUnit = UnitInstance(
             info: info,
             model: model,
@@ -67,11 +72,20 @@ class UnitViewController: NSViewController {
         unit = nil
         viewState.model = nil
         viewState.modelInstance = nil
+        viewState.highlightedPieceIndex = -1
         unitView.clear()
+    }
+
+    func setHighlightedPiece(_ index: UnitModel.Pieces.Index?) {
+        viewState.highlightedPieceIndex = index.map(Int32.init) ?? -1
     }
     
     private func computeSceneSize() {
-        let w = GameFloat( ((unit?.info.footprint.width ?? 2) + 8) * ModelViewState.gridSize )
+        let footprintWidth = GameFloat( ((unit?.info.footprint.width ?? 2) + 8) * ModelViewState.gridSize )
+        let extent = viewState.model?.maxWorldExtent ?? 0
+        let extentFit = extent * 2.3
+        let baseWidth = max(footprintWidth, extentFit)
+        let w = (baseWidth > 0 ? baseWidth : footprintWidth) / GameFloat(viewState.zoom)
         viewState.sceneSize = Size2f(width: w, height: w * viewState.aspectRatio)
     }
     
@@ -102,7 +116,24 @@ extension UnitViewController: UnitViewStateProvider {
         else if event.modifierFlags.contains(.option) { viewState.rotateY += GLfloat(event.deltaX) }
         else { viewState.rotateZ += GLfloat(event.deltaX) }
     }
-    
+
+    override func scrollWheel(with event: NSEvent) {
+        let delta = Float(event.scrollingDeltaY)
+        guard delta != 0 else { return }
+        let factor = exp(delta * 0.02)
+        let newZoom = max(0.1, min(32.0, viewState.zoom * factor))
+        guard newZoom != viewState.zoom else { return }
+        viewState.zoom = newZoom
+        computeSceneSize()
+    }
+
+    override func magnify(with event: NSEvent) {
+        let factor = Float(1.0 + event.magnification)
+        let newZoom = max(0.1, min(32.0, viewState.zoom * factor))
+        viewState.zoom = newZoom
+        computeSceneSize()
+    }
+
     override func keyDown(with event: NSEvent) {
         switch event.characters {
         case .some("w"):
@@ -115,6 +146,18 @@ extension UnitViewController: UnitViewStateProvider {
             viewState.textured = !viewState.textured
         case .some("l"):
             viewState.lighted = !viewState.lighted
+        case .some("="), .some("+"):
+            viewState.zoom = min(32.0, viewState.zoom * 1.25)
+            computeSceneSize()
+        case .some("-"), .some("_"):
+            viewState.zoom = max(0.1, viewState.zoom / 1.25)
+            computeSceneSize()
+        case .some("0"):
+            viewState.zoom = 1.0
+            viewState.rotateX = 0
+            viewState.rotateY = 0
+            viewState.rotateZ = 160
+            computeSceneSize()
         default:
             ()
         }
@@ -183,7 +226,10 @@ struct UnitViewState {
     
     var model: UnitModel?
     var modelInstance: UnitModel.Instance?
-    
+
+    var zoom: Float = 1.0
+    var highlightedPieceIndex: Int32 = -1
+
     var isMoving = false
     var speed: GameFloat = 0
     var movement: GameFloat = 0

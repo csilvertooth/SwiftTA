@@ -228,11 +228,16 @@ extension UnitBrowserSharedState {
     }
 }
 
-class UnitDetailViewController: NSViewController {
-    
+class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate {
+
     var shared = UnitBrowserSharedState.empty
     let unitView = UnitViewController()
-    
+    let pieceView = PieceHierarchyView(frame: .zero)
+
+    func pieceHierarchyView(_ view: PieceHierarchyView, didSelectPieceAt index: UnitModel.Pieces.Index?) {
+        unitView.setHighlightedPiece(index)
+    }
+
     func load(_ unit: UnitInfo) throws {
         unitTitle = unit.object
         let modelFile = try shared.filesystem.openFile(at: "objects3d/" + unit.object + ".3DO")
@@ -242,12 +247,14 @@ class UnitDetailViewController: NSViewController {
         let atlas = UnitTextureAtlas(for: model.textures, from: shared.textures)
         let palette = try Palette.texturePalette(for: unit, in: shared.sides, from: shared.filesystem)
         try unitView.load(unit, model, script, atlas, shared.filesystem, palette)
-        
+        pieceView.apply(model: model, script: script)
+
         //try tempSaveAtlasToFile(atlas, palette)
     }
-    
+
     func clear() {
         unitView.clear()
+        pieceView.clear()
     }
     
     private func tempSaveAtlasToFile(_ atlas: UnitTextureAtlas, _ palette: Palette) throws {
@@ -286,10 +293,11 @@ class UnitDetailViewController: NSViewController {
     }
     
     private class ContainerView: NSView {
-        
+
         unowned let titleLabel: NSTextField
         let emptyContentView: NSView
-        
+        let pieceAccessory: NSView
+
         weak var contentView: NSView? {
             didSet {
                 guard contentView != oldValue else { return }
@@ -306,51 +314,60 @@ class UnitDetailViewController: NSViewController {
                 }
             }
         }
-        
-        override init(frame frameRect: NSRect) {
+
+        init(frame frameRect: NSRect, pieceAccessory: NSView) {
             let titleLabel = NSTextField(labelWithString: "Title")
             titleLabel.font = NSFont.systemFont(ofSize: 18)
             titleLabel.textColor = NSColor.labelColor
             let contentBox = NSView(frame: NSRect(x: 0, y: 0, width: 32, height: 32))
-            
+
             self.titleLabel = titleLabel
             self.emptyContentView = contentBox
+            self.pieceAccessory = pieceAccessory
             super.init(frame: frameRect)
-            
+
             addSubview(contentBox)
             addSubview(titleLabel)
-            
+            pieceAccessory.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(pieceAccessory)
+
             contentBox.translatesAutoresizingMaskIntoConstraints = false
             titleLabel.translatesAutoresizingMaskIntoConstraints = false
-            
+
             addContentViewConstraints(contentBox)
             NSLayoutConstraint.activate([
                 titleLabel.centerXAnchor.constraint(equalTo: self.centerXAnchor),
-                ])
+                pieceAccessory.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 8),
+                pieceAccessory.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
+                pieceAccessory.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
+                pieceAccessory.bottomAnchor.constraint(equalTo: self.bottomAnchor, constant: -8),
+            ])
         }
-        
+
         required init?(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
-        
+
         private func addContentViewConstraints(_ contentBox: NSView) {
             NSLayoutConstraint.activate([
                 contentBox.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 8),
                 contentBox.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
                 contentBox.topAnchor.constraint(equalTo: self.topAnchor, constant: 8),
-                contentBox.heightAnchor.constraint(equalTo: self.heightAnchor, multiplier: 0.61803398875),
+                contentBox.heightAnchor.constraint(equalTo: self.heightAnchor, multiplier: 0.55),
                 titleLabel.topAnchor.constraint(equalTo: contentBox.bottomAnchor, constant: 8),
                 ])
         }
-        
+
     }
-    
+
     override func loadView() {
-        let container = ContainerView(frame: NSRect(x: 0, y: 0, width: 256, height: 256))
+        let container = ContainerView(frame: NSRect(x: 0, y: 0, width: 256, height: 512),
+                                      pieceAccessory: pieceView)
         self.view = container
-        
+
         addChild(unitView)
         container.contentView = unitView.view
+        pieceView.selectionDelegate = self
     }
     
 }

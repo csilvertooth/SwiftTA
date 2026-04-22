@@ -32,9 +32,10 @@ typedef NS_ENUM(NSInteger, ModelMetalRenderer_BufferIndex)
 
 typedef NS_ENUM(NSInteger, ModelMetalRenderer_ModelVertexAttribute)
 {
-    ModelMetalRenderer_ModelVertexAttributePosition = 0,
-    ModelMetalRenderer_ModelVertexAttributeNormal   = 1,
-    ModelMetalRenderer_ModelVertexAttributeTexcoord = 2,
+    ModelMetalRenderer_ModelVertexAttributePosition   = 0,
+    ModelMetalRenderer_ModelVertexAttributeNormal     = 1,
+    ModelMetalRenderer_ModelVertexAttributeTexcoord   = 2,
+    ModelMetalRenderer_ModelVertexAttributePieceIndex = 3,
 };
 
 typedef NS_ENUM(NSInteger, ModelMetalRenderer_GridVertexAttribute)
@@ -54,6 +55,7 @@ typedef struct
     vector_float3 position ATTR(ModelMetalRenderer_ModelVertexAttributePosition);
     vector_float3 normal ATTR(ModelMetalRenderer_ModelVertexAttributeNormal);
     vector_float2 texCoord ATTR(ModelMetalRenderer_ModelVertexAttributeTexcoord);
+    int pieceIndex ATTR(ModelMetalRenderer_ModelVertexAttributePieceIndex);
 } ModelMetalRenderer_ModelVertex;
 
 typedef struct
@@ -70,6 +72,7 @@ typedef struct
     vector_float4 objectColor;
     vector_float3 lightPosition;
     vector_float3 viewPosition;
+    int highlightedPieceIndex;
 } ModelMetalRenderer_ModelUniforms;
 
 typedef struct

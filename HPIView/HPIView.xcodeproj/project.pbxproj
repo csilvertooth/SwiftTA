@@ -27,6 +27,7 @@
 		F015C79E20AE3D9600873642 /* unit-view-grid.glsl.frag in Resources */ = {isa = PBXBuildFile; fileRef = F015C79C20AE3D9500873642 /* unit-view-grid.glsl.frag */; };
 		F015C7A020AE421000873642 /* ModelViewRenderer+OpenglLegacy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F015C79F20AE421000873642 /* ModelViewRenderer+OpenglLegacy.swift */; };
 		F08A641120EE86CD001E5982 /* ModelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08A641020EE86CD001E5982 /* ModelView.swift */; };
+		FACE0004000002000000FACE /* PieceHierarchyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0003000002000000FACE /* PieceHierarchyView.swift */; };
 		F08C9A8721126BE200DC18EE /* TntViewRenderer+MetalSingleQuad.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08C9A8621126BE200DC18EE /* TntViewRenderer+MetalSingleQuad.swift */; };
 		F08C9A8921126C6200DC18EE /* TntViewRenderer+MetalStaticGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08C9A8821126C6200DC18EE /* TntViewRenderer+MetalStaticGrid.swift */; };
 		F08C9A8B21126D2900DC18EE /* TntViewRenderer+MetalDynamicTiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08C9A8A21126D2900DC18EE /* TntViewRenderer+MetalDynamicTiles.swift */; };
@@ -67,6 +68,7 @@
 		F015C79C20AE3D9500873642 /* unit-view-grid.glsl.frag */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.glsl; name = "unit-view-grid.glsl.frag"; path = "../../TAassets/TAassets/unit-view-grid.glsl.frag"; sourceTree = "<group>"; };
 		F015C79F20AE421000873642 /* ModelViewRenderer+OpenglLegacy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "ModelViewRenderer+OpenglLegacy.swift"; sourceTree = "<group>"; };
 		F08A641020EE86CD001E5982 /* ModelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelView.swift; sourceTree = "<group>"; };
+		FACE0003000002000000FACE /* PieceHierarchyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PieceHierarchyView.swift; sourceTree = "<group>"; };
 		F08C9A8621126BE200DC18EE /* TntViewRenderer+MetalSingleQuad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TntViewRenderer+MetalSingleQuad.swift"; sourceTree = "<group>"; };
 		F08C9A8821126C6200DC18EE /* TntViewRenderer+MetalStaticGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TntViewRenderer+MetalStaticGrid.swift"; sourceTree = "<group>"; };
 		F08C9A8A21126D2900DC18EE /* TntViewRenderer+MetalDynamicTiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TntViewRenderer+MetalDynamicTiles.swift"; sourceTree = "<group>"; };
@@ -123,6 +125,7 @@
 				B5E26F311ED9EDD7006C329B /* GafView.swift */,
 				B50F6A4F1D87A54B0016C15B /* HpiDocument.swift */,
 				F08A641020EE86CD001E5982 /* ModelView.swift */,
+				FACE0003000002000000FACE /* PieceHierarchyView.swift */,
 				F0C74B6E20D06F2A00F52B01 /* ModelView+Metal.swift */,
 				B553EE351DDFE2270033C70D /* ModelView+Opengl.swift */,
 				F0C74B7020D0744000F52B01 /* ModelViewRenderer+Metal.swift */,
@@ -262,6 +265,7 @@
 				F0AEB0E22098FB590087B36B /* QuickLookView.swift in Sources */,
 				B5EDC8DF24A96D4E00313D5F /* Utility+OpenGL.swift in Sources */,
 				F08A641120EE86CD001E5982 /* ModelView.swift in Sources */,
+				FACE0004000002000000FACE /* PieceHierarchyView.swift in Sources */,
 				F0CD87D120FFE7B30012B1C8 /* TntView+Metal.swift in Sources */,
 				B57C32B520702B4700B24C99 /* PaletteView.swift in Sources */,
 				F08C9A8B21126D2900DC18EE /* TntViewRenderer+MetalDynamicTiles.swift in Sources */,
