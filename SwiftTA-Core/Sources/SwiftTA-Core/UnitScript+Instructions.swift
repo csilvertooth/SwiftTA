@@ -724,12 +724,17 @@ private func getFunctionResult(execution: ScriptExecutionContext) throws {
         case .pieceXZ:
             if let pos = pieceWorldPosition(scriptPiece: params[0], execution: execution) {
                 // UnitModel remaps 3DO (x, y, z) → SIMD (x, z, y) so pos.y is TA's Z
-                // (horizontal depth) and pos.z is TA's Y (vertical height).
-                result = packXZ(x: pos.x, z: pos.y)
+                // (horizontal depth) and pos.z is TA's Y (vertical height). The IK
+                // bisection loops need sub-pixel precision to discriminate between
+                // small angle increments, so positions are scaled by
+                // IKPositionScale before being packed. XZ_ATAN / XZ_HYPOT only
+                // care about ratios and scale consistency, so the unit-free
+                // scaling is safe as long as PIECE_Y matches.
+                result = packXZ(x: pos.x * IKPositionScale, z: pos.y * IKPositionScale)
             }
         case .pieceY:
             if let pos = pieceWorldPosition(scriptPiece: params[0], execution: execution) {
-                result = _StackValue(pos.z)
+                result = _StackValue(truncatingIfNeeded: Int((pos.z * IKPositionScale).rounded()))
             }
         case .xzAtan:
             let (x, z) = unpackXZ(params[0])
@@ -757,6 +762,11 @@ private func pieceWorldPosition(scriptPiece: UnitScript.CodeUnit, execution: Scr
     guard modelIndex < model.pieces.count else { return nil }
     return model.pieceWorldPosition(modelIndex, instance: execution.model.pointee)
 }
+
+/// Fixed-point scale applied to piece world positions before they are packed
+/// into PIECE_XZ / PIECE_Y integers. 256 gives 8 bits of sub-pixel precision,
+/// enough for a binary-search IK to discriminate single-degree increments.
+private let IKPositionScale: GameFloat = 256
 
 private func packXZ(x: GameFloat, z: GameFloat) -> UnitScript.CodeUnit {
     // TA packs the XZ coordinate as (x << 16) | (z & 0xFFFF), both as 16-bit
