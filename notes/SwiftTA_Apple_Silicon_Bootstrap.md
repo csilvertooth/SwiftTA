@@ -263,6 +263,27 @@ let sceneWidthNeeded = max(modelDiameter, modelDiameter / aspectRatio)
 
 So `sceneHeight = sceneWidthNeeded * aspectRatio >= modelDiameter` is guaranteed regardless of the viewport aspect. On load the full unit is always visible before the user zooms in.
 
+## COB script IK getters ([SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift))
+
+`getUnitValue` (opcode `0x10042000`) and `getFunctionResult` (opcode `0x10043000`) were both stubbed to push `0` regardless of what the COB script asked for. TA spider-class units calculate leg rotations at `Create` time via:
+
+```
+x = get(PIECE_XZ, Leg5-0)
+atan = get(XZ_ATAN, x)
+turn Leg5-0 to y-axis atan now
+```
+
+With `PIECE_XZ` returning `0`, `XZ_ATAN` read zero, and every leg that relied on this IK pattern rotated to 0° — collapsing onto the body origin. That's why CORMKL's side legs (Leg5/Leg6) disappeared while front legs (Leg1/Leg2 that use fixed offsets) rendered fine.
+
+Fix:
+
+- [`UnitModel.parents`](SwiftTA-Core/Sources/SwiftTA-Core/UnitModel.swift) is now populated during load — each piece knows its ancestor chain.
+- [`UnitModel.pieceStaticOffset(_:)`](SwiftTA-Core/Sources/SwiftTA-Core/UnitModel.swift) sums a piece's ancestor offsets, giving the world-space offset adequate for the Create-time IK queries (moves are still zero at that point).
+- `UnitScript.Context` now carries a `UnitModel` reference so instructions can reach the piece tree.
+- `getUnitValue` returns sensible defaults for `activation`, `health`, `standingFireOrders`, `armored`, and the position queries.
+- `getFunctionResult` implements `PIECE_XZ`, `PIECE_Y`, `XZ_ATAN`, `XZ_HYPOT`, `ATAN`, `HYPOT`, and zero-returning fallbacks for unit/ground queries.
+- TA angle encoding (65536 units per full turn) and the packed-xz representation (`(x << 16) | (z & 0xFFFF)`) are implemented as `taAtan2`, `taHypot`, `packXZ`, `unpackXZ`.
+
 ## Multi-root 3DOs ([SwiftTA-Core/Sources/SwiftTA-Core/UnitModel.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitModel.swift))
 
 The 3DO parser already accumulates every sibling offset starting at byte 0 into `ModelData.roots`, but `UnitModel.init` only kept the first:
