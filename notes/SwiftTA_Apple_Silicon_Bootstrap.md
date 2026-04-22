@@ -267,6 +267,16 @@ So `sceneHeight = sceneWidthNeeded * aspectRatio >= modelDiameter` is guaranteed
 
 `UnitScript.Thread.Stack.pop(count: n)` was returning `suffix(from: n - 1)` instead of `suffix(n)`. `suffix(from:)` slices from a start index, so the returned array's length depended on the current stack depth — you only got exactly `n` elements when the stack happened to hold `2·n - 1` items. Everywhere else it returned the wrong count, so `getFunctionResult`, `startScript`, and `callScript` popped whatever random slice the arithmetic landed on. Fixed by using `suffix(n)`.
 
+## Wait-for-turn / wait-for-move release ([SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+VM.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+VM.swift))
+
+`waitForTurn` and `waitForMove` flipped a thread into `.waitingForTurn(piece, axis)` / `.waitingForMove(piece, axis)` but nothing ever woke them again — `Thread.run` just `break runLoop`'d on those states. Every walker loop stalled on its first `wait-for-turn` and kept queuing new `rotation` animations against a frozen piece state. CORMKL's pending-animation queue ballooned past 1100 items while nothing moved on screen.
+
+`Context.applyAnimations` now iterates the thread list after applying animations and flips any thread back to `.running` when no rotation / spin / translation matching its waited `(piece, axis)` is still in flight. `waitForTurn` / `waitForMove` also short-circuit at the call site when no matching animation is pending, so scripts like `turn X to Y now; wait-for-turn X;` don't stall waiting on something that already happened.
+
+## IK precision ([SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift))
+
+Create's bisection IK needs to discriminate a single-degree change in the end-effector's hypotenuse distance from the shoulder. Packing piece positions as integer pixels lost that resolution — small angle increments produced the same rounded hypot and the bisection couldn't decide which half to take. Scaled the packed positions by 256 (8 bits of sub-pixel precision) before `packXZ` / `PIECE_Y`. `XZ_ATAN` and `XZ_HYPOT` only care about the ratio and scale consistency of their arguments, so the script comparisons stay correct.
+
 ## Inline `turn/move now` + world-space piece queries
 
 TA walker `Create` scripts (CORMKL and every other TAESC spider) do an in-loop binary-search IK:
