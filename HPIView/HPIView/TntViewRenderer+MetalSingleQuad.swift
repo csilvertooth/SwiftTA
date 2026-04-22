@@ -133,6 +133,7 @@ extension SingleTextureMetalTntViewRenderer {
         
         let uniforms = uniformBuffer.next().contents.bindMemory(to: Uniforms.self, capacity: 1)
         uniforms.pointee.mvpMatrix = projectionMatrix * viewMatrix * modelMatrix
+        uniforms.pointee.mapSize = vector_float2(Float(texture.width), Float(texture.height))
         
         let vx = viewportSize.x
         let vy = viewportSize.y

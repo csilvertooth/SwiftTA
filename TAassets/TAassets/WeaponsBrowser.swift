@@ -128,39 +128,28 @@ class WeaponsBrowserViewController: NSViewController, ContentViewController {
         print("Weapons list load time: \(end.timeIntervalSince(begin)) seconds; weapons found: \(all.count) from \(tdfFiles.count) TDFs across \(weaponDirs.count) dir(s)")
     }
 
-    /// Walks a parsed TDF tree looking for blocks that look like weapon definitions.
-    /// A block is treated as a weapon if it has any of the hallmark properties
-    /// (`weapontype`, `range`, `weaponvelocity`, `name` alongside damage data, etc.)
-    /// or if it contains a `damage` subobject. Otherwise the walker descends into
-    /// nested subobjects so container blocks like `[WEAPONDEFS]` don't hide content.
+    /// Walks a parsed TDF tree and emits every block with properties as a potential
+    /// weapon entry. Container blocks with only subobjects (e.g. `[WEAPONDEFS]`) are
+    /// descended into rather than listed, but any leaf block is included so the user
+    /// can filter down via the search field rather than have the code guess.
     private static func collectWeapons(from object: TdfParser.Object,
                                         sourceFile: String,
                                         into results: inout [WeaponInfo],
                                         seen: inout Set<String>) {
         for (key, sub) in object.subobjects {
-            let lowerKey = key.lowercased()
-            if looksLikeWeapon(sub) {
-                guard seen.insert(lowerKey).inserted else { continue }
-                results.append(WeaponInfo(from: sub, key: key, sourceFile: sourceFile))
-            } else if !sub.subobjects.isEmpty {
+            let hasProperties = !sub.properties.isEmpty
+            let hasSubobjects = !sub.subobjects.isEmpty
+
+            if hasProperties {
+                let dedupKey = (sourceFile + "#" + key).lowercased()
+                if seen.insert(dedupKey).inserted {
+                    results.append(WeaponInfo(from: sub, key: key, sourceFile: sourceFile))
+                }
+            }
+            if hasSubobjects {
                 collectWeapons(from: sub, sourceFile: sourceFile, into: &results, seen: &seen)
             }
         }
-    }
-
-    private static func looksLikeWeapon(_ object: TdfParser.Object) -> Bool {
-        let weaponishKeys: Set<String> = [
-            "weapontype", "range", "weaponvelocity", "weaponlaserdef",
-            "reloadtime", "accuracy", "areaofeffect", "energypershot",
-            "metalpershot", "explosiongaf", "startvelocity", "lineofsight"
-        ]
-        for key in object.properties.keys where weaponishKeys.contains(key.lowercased()) {
-            return true
-        }
-        if object.subobjects.keys.contains(where: { $0.lowercased() == "damage" }) {
-            return true
-        }
-        return false
     }
 
     @objc private func searchFieldChanged(_ sender: NSSearchField) {

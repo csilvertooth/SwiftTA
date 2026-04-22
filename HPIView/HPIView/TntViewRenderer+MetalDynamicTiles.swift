@@ -157,6 +157,7 @@ extension DynamicTileMetalTntViewRenderer {
         
         let uniforms = uniformBuffer.next().contents.bindMemory(to: Uniforms.self, capacity: 1)
         uniforms.pointee.mvpMatrix = projectionMatrix * viewMatrix * modelMatrix
+        uniforms.pointee.mapSize = vector_float2(Float(map.resolution.width), Float(map.resolution.height))
         
         if visibleTileGrid != lastTileGrid {
             let last = lastTileGrid

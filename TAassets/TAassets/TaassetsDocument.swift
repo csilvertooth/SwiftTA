@@ -41,6 +41,27 @@ class TaassetsDocument: NSDocument {
         let viewController = windowController.contentViewController as! TaassetsViewController
         viewController.shared = TaassetsSharedState(filesystem: filesystem, sides: sides)
         self.addWindowController(windowController)
+
+        if let window = windowController.window {
+            window.minSize = NSSize(width: 900, height: 600)
+            // Restore last size/position when available; otherwise open at a
+            // reasonable default that actually fits the asset browsers.
+            let autosaveName = "TaassetsMainWindow"
+            window.setFrameAutosaveName(autosaveName)
+            if !window.setFrameUsingName(autosaveName), let screen = window.screen ?? NSScreen.main {
+                let visible = screen.visibleFrame
+                let target = NSSize(
+                    width: min(1600, max(1100, visible.width * 0.7)),
+                    height: min(1100, max(750, visible.height * 0.8))
+                )
+                let origin = NSPoint(
+                    x: visible.midX - target.width / 2,
+                    y: visible.midY - target.height / 2
+                )
+                window.setFrame(NSRect(origin: origin, size: target), display: true)
+                window.saveFrame(usingName: autosaveName)
+            }
+        }
     }
 
     override func read(from directoryURL: URL, ofType typeName: String) throws {

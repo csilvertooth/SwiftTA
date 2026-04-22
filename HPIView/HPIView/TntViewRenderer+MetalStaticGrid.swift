@@ -109,6 +109,7 @@ extension StaticTextureSetMetalTntViewRenderer {
         
         let uniforms = uniformBuffer.contents().bindMemory(to: Uniforms.self, capacity: 1)
         uniforms.pointee.mvpMatrix = projectionMatrix * viewMatrix * modelMatrix
+        uniforms.pointee.mapSize = vector_float2(0, 0)
     }
     
     func drawFrame(with renderEncoder: MTLRenderCommandEncoder) {

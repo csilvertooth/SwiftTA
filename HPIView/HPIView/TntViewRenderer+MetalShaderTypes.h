@@ -66,6 +66,8 @@ typedef struct
 typedef struct
 {
     matrix_float4x4 mvpMatrix;
+    vector_float2 mapSize;
+    vector_float2 _pad;
 } MetalTntViewRenderer_MapUniforms;
 
 #pragma pack(pop)
