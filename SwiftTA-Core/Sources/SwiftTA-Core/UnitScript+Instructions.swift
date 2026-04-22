@@ -695,7 +695,10 @@ private func getUnitValue(execution: ScriptExecutionContext) throws {
  */
 private func getFunctionResult(execution: ScriptExecutionContext) throws {
 
-    let params: [_StackValue] = try execution.thread.stack.pop(count: 4).reversed()
+    // pop(count: 4) returns items in push order (oldest first), so params[0] is
+    // the first argument the script wrote — matching the TA convention where
+    // get(PIECE_XZ, piece, 0, 0, 0) puts the piece index in the first slot.
+    let params: [_StackValue] = try execution.thread.stack.pop(count: 4)
     let what = try execution.thread.stack.pop()
 
     var result: _StackValue = 0
@@ -784,8 +787,8 @@ private func startScript(execution: ScriptExecutionContext) throws {
     
     let module = try execution.process.module(at: moduleIndex)
     let params = try execution.thread.stack.pop(count: Int(paramCount))
-    
-    execution.process.startScript(module, parameters: params.reversed())
+
+    execution.process.startScript(module, parameters: params)
     execution.thread.instructionPointer += 3
 }
 
@@ -807,9 +810,9 @@ private func callScript(execution: ScriptExecutionContext) throws {
     
     let module = try execution.process.module(at: moduleIndex)
     let params = try execution.thread.stack.pop(count: Int(paramCount))
-    
+
     execution.thread.instructionPointer += 3
-    execution.thread.callScript(module, parameters: params.reversed())
+    execution.thread.callScript(module, parameters: params)
 }
 
 /**

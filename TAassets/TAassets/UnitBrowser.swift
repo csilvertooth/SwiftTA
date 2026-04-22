@@ -335,6 +335,13 @@ class UnitDetailViewController: NSViewController, PieceHierarchyViewDelegate, Pl
         let pieceNames = model.pieces.enumerated().map { "[\($0.offset)]\($0.element.name)" }.joined(separator: " ")
         print("Unit \(unit.object): \(model.pieces.count) pieces, \(model.primitives.count) primitives, \(script.modules.count) script modules")
         print("  pieces: \(pieceNames)")
+        let moduleNames = script.modules.map { $0.name }.joined(separator: ", ")
+        print("  modules: \(moduleNames)")
+        var decompile = ""
+        script.decompile(writingTo: { decompile += $0 })
+        let decompilePath = "/tmp/taassets-last-cob.txt"
+        try? decompile.write(toFile: decompilePath, atomically: true, encoding: .utf8)
+        print("  decompile: \(decompilePath)")
 
         try unitView.load(unit, model, script, atlas, shared.filesystem, palette)
         pieceView.apply(model: model, script: script)
