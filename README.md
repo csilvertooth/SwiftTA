@@ -8,7 +8,11 @@
 > - **COB playback controls** (TAassets) — pause / step / 0×–2× speed slider, plus a "Run script…" pull-down for every module in the unit's COB so you can trigger `Activate`, `QueryPrimary`, etc. on demand and watch building internals animate piece by piece.
 > - **Camera controls** — scroll / pinch zoom, shift-drag pitch, `=` / `-` / `0` keys. Auto-fits the model on load so large buildings don't open zoomed past the viewport; re-fits on window resize.
 > - **Mod-aware filesystem** — a dynamic `Mods` menu lists every mod folder under `<base>/mods/` and rebuilds the merged filesystem on selection. Opening a mod folder directly (e.g. `~/tafiles/mods/taesc`) is auto-paired with the vanilla base it lives under. TAESC-style mods with nested `unitsE/` and off-spec `unitpicE/` directories are discovered recursively.
-> - **Tolerant standalone loading** — `gamedata/sidedata.tdf` is optional; palette lookup falls back through side → standard → neutral.
+> - **Map viewer** — auto-fits the map to the viewport on load, pinch/scroll zoom, numbered start-position markers pulled from the OTA schema, and edge-smear fixed via `clamp_to_zero` sampling plus a fragment-shader discard past the map's actual pixel size. Supports maps up to 8192 px in the on-screen render budget.
+> - **Weapons browser** — walks every `weapon*/` directory, parses each `.tdf` recursively, and lists every weapon block with a searchable detail pane (key, source file, weapon type, range, damage table, raw properties).
+> - **Searchable browsers** — live filter fields above the Units, Maps, and Weapons lists.
+> - **Browser chrome** — compact header strips carry unit/map details instead of centered oversized titles; the sidebar uses SF Symbols (cube, scope, map, folder) shifted clear of the traffic-light controls; TAassets window size/position persists across launches.
+> - **Tolerant standalone loading** — `gamedata/sidedata.tdf` is optional; palette lookup falls back through side → standard → neutral; missing `TA_Features_2013.ccx` is logged clearly.
 > - **HPIView extraction** — the previously-stub `Extract All` menu item is implemented, so you can now dump the entire archive to a folder.
 > - **Script VM hardening** — the COB `divide` opcode no longer traps on divide-by-zero (observed in TAESC scripts).
 >

@@ -205,3 +205,42 @@ For users who open a mod folder that has no vanilla parent:
 - The `unitsE`, `gamedatE`, `guiE` duplicate root directories from the TAESC archives are still not understood — they look like HPI directory-name parsing corruption rather than intentional English-locale variants. The broader unit/pic scans work around it, but the HPI parser may still be reading one byte past the null terminator in some cases.
 - No per-unit texture variant handling for team colors. Units render with side 1's palette only.
 - Extraction UI only exists in HPIView. TAassets could carry its own since `FileSystem.File.archiveURL` already tells it which container each file came from.
+
+---
+
+# TAassets UX work
+
+Collected on branch `chore/taassets-ux` after the initial bootstrap was merged to `main`. Covers browser chrome, map viewer upgrades, mod-unit discovery, a working weapons tab, and several shader fixes to support mod maps.
+
+## Browser chrome
+
+- **Detail pane layout** ([TAassets/TAassets/UnitBrowser.swift](TAassets/TAassets/UnitBrowser.swift), [TAassets/TAassets/MapBrowser.swift](TAassets/TAassets/MapBrowser.swift)) — the old 62% golden-ratio content box with a centered 18-pt title has been replaced with a compact header strip. Map pane shows `mapname · planet · N players · wind lo-hi · tidal · gravity` from the OTA. Unit pane shows `objectName · title · description · side · tedclass · footprint · speed`. The 3D or map content fills the remaining pane.
+- **Autoresizing fix** ([TAassets/TAassets/UnitBrowser.swift](TAassets/TAassets/UnitBrowser.swift), [TAassets/TAassets/MapBrowser.swift](TAassets/TAassets/MapBrowser.swift)) — the detail controller's view was set to `[.width, .width]` in both browsers, so the detail pane never grew vertically with the window. Fixed to `[.width, .height]`.
+- **Sidebar icons** ([TAassets/TAassets/TaassetsDocument.swift](TAassets/TAassets/TaassetsDocument.swift)) — swapped the stock AppKit images for SF Symbols on macOS 11+: `cube.fill` (Units), `scope` (Weapons), `map.fill` (Maps), `folder.fill` (Files). Falls back to the original images on older systems.
+- **Sidebar spacing** ([TAassets/TAassets/TaassetsDocument.swift](TAassets/TAassets/TaassetsDocument.swift)) — the Units icon was clipping under the red/yellow/green window buttons; added 28-pt top edge insets on the sidebar stack view.
+- **Window sizing & autosave** ([TAassets/TAassets/TaassetsDocument.swift](TAassets/TAassets/TaassetsDocument.swift)) — documents now open at ~70% of screen width / 80% height (capped 1600×1100, floored 1100×750) and persist the frame under `TaassetsMainWindow` so future launches restore the last size and position. Minimum size 900×600 so the browser chrome always fits.
+- **Search fields** ([TAassets/TAassets/UnitBrowser.swift](TAassets/TAassets/UnitBrowser.swift), [TAassets/TAassets/MapBrowser.swift](TAassets/TAassets/MapBrowser.swift), [TAassets/TAassets/WeaponsBrowser.swift](TAassets/TAassets/WeaponsBrowser.swift)) — added an `NSSearchField` above the Units, Maps, and Weapons lists. Filters live. Units match on name/title/description/3DO object name; maps match on base name; weapons match on key/name/weapontype/source file.
+
+## Map viewer
+
+- **Auto-fit on load** ([TAassets/TAassets/MapView+Metal.swift](TAassets/TAassets/MapView+Metal.swift)) — `MetalMapView.zoomToFit(resolution:)` sets `NSScrollView.magnification` so the full map fits the current viewport on open (previously always 1:1 which made 16k-wide maps look like an opaque tile). `NSScrollView.allowsMagnification` is already on, so pinch/scroll zoom work throughout.
+- **Viewport sync every frame** ([TAassets/TAassets/MapView+Metal.swift](TAassets/TAassets/MapView+Metal.swift)) — `draw(in:)` now refreshes `viewState.viewport` from the current clip-view bounds each frame. The bounds-changed notification was occasionally dropped around a map reload, so the second map would stop redrawing while the scrollView's markers kept scrolling. Belt-and-suspenders fix.
+- **Start-position markers** ([TAassets/TAassets/MapView+Metal.swift](TAassets/TAassets/MapView+Metal.swift)) — the scroll view's (previously invisible) document view is now a `MapOverlayView` that paints numbered gold/orange circles at every commander start pulled from `MapInfo.schema[0].startPositions`. Flipped coordinate system so positions match OTA directly. Scrolls and zooms with the map.
+- **Map size ceiling** ([HPIView/HPIView/TntViewRenderer+MetalDynamicTiles.swift](HPIView/HPIView/TntViewRenderer+MetalDynamicTiles.swift)) — `maximumDisplaySize` bumped from `4096×4096` to `8192×8192` (16×16 screen-tile grid, ~256 MB VRAM) so maps render cleanly on 4K-class Retina displays. `computeTileGrid` clamps the visible grid to `maximumGridSize` so a viewport larger than the pool no longer overflows the pre-sized index/slice buffers (previously produced tile fallback artifacts).
+- **Past-edge discard** ([HPIView/HPIView/TntViewRenderer+MetalShaders.metal](HPIView/HPIView/TntViewRenderer+MetalShaders.metal), [HPIView/HPIView/TntViewRenderer+MetalShaderTypes.h](HPIView/HPIView/TntViewRenderer+MetalShaderTypes.h)) — map fragment shaders discard pixels outside the map's pixel area. Single-quad checks texCoord against `[0,1]`; tile shader compares world position to a new `mapSize` uniform. Samplers also switched to `clamp_to_zero`. No more vertical smearing of the last terrain column when the viewport or a partial edge tile extends past the map.
+- **Missing-features warning** ([TAassets/TAassets/MapView+Metal.swift](TAassets/TAassets/MapView+Metal.swift)) — feature loading errors are no longer swallowed by `try?`; the viewer now logs a clear note pointing at `TA_Features_2013.ccx` so users can tell when that archive is missing from the base.
+
+## Mod support
+
+- **Mod-folder auto-detect** ([TAassets/TAassets/TaassetsDocument.swift](TAassets/TAassets/TaassetsDocument.swift)) — File → Open on a folder whose parent is named `mods` or `mod` and whose grandparent has TA archives now loads the grandparent as the base with the opened folder as the active mod. Opening `~/tafiles/mods/taesc` behaves the same as opening `~/tafiles` and choosing `taesc` from the Mods menu — the mod gets its textures and palettes from the vanilla base.
+- **Menu routing** ([TAassets/TAassets/AppDelegate.swift](TAassets/TAassets/AppDelegate.swift)) — the Mods-menu action routes through `AppDelegate.activateModFromMenu(_:)` rather than targeting the NSDocument directly, so dispatch works regardless of first-responder state. The first menu entry reads `Base only: <folder>` instead of a generic label.
+- **Recursive unit discovery** ([TAassets/TAassets/UnitBrowser.swift](TAassets/TAassets/UnitBrowser.swift)) — `UnitBrowserViewController.viewDidLoad` walks the entire merged filesystem for `*.fbi`, catching TAESC-style archives that stash unit definitions in `unitsE/` alongside `units/`. Deduped by lowercased base name so an overridden vanilla unit appears once. Debug prints expose root entries and per-directory FBI counts.
+- **Generalized buildpic search** ([TAassets/TAassets/UnitBrowser.swift](TAassets/TAassets/UnitBrowser.swift)) — iterates every root directory whose name starts with `unitpic` and tries PCX, BMP, PNG, JPG/JPEG, TGA before falling back to `anims/buildpic/` JPG/PNG/BMP. Handles both vanilla and mod naming.
+
+## Weapons browser ([TAassets/TAassets/WeaponsBrowser.swift](TAassets/TAassets/WeaponsBrowser.swift))
+
+New tab wired to the Weapons sidebar button. Walks every top-level directory whose name starts with `weapon` (so `weaponsE/` and `weaponE/` from mod archives are picked up) and parses each `*.tdf` with `TdfParser`. Every block with at least one property is shown in a two-column table (name, range). Container blocks with only subobjects are descended into rather than listed. Selecting a weapon prints its key, source file, weapon type, range, damage table, and full property set in the detail pane. Search field narrows by key, name, weapon type, and source file.
+
+## COB VM hardening ([SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift))
+
+Some mod scripts (confirmed in TAESC) invoke the divide opcode with a zero right-hand side. Swift's `/` traps on integer division by zero and crashed the app the moment a unit was selected. Replaced the `.divide` entry in the opcode dispatch dictionary with a guarded closure that returns `0` on zero divisor so the VM keeps running.
