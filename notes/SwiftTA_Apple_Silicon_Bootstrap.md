@@ -263,6 +263,10 @@ let sceneWidthNeeded = max(modelDiameter, modelDiameter / aspectRatio)
 
 So `sceneHeight = sceneWidthNeeded * aspectRatio >= modelDiameter` is guaranteed regardless of the viewport aspect. On load the full unit is always visible before the user zooms in.
 
+## COB VM stack bug ([SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+VM.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+VM.swift))
+
+`UnitScript.Thread.Stack.pop(count: n)` was returning `suffix(from: n - 1)` instead of `suffix(n)`. `suffix(from:)` slices from a start index, so the returned array's length depended on the current stack depth — you only got exactly `n` elements when the stack happened to hold `2·n - 1` items. Everywhere else it returned the wrong count, so `getFunctionResult`, `startScript`, and `callScript` popped whatever random slice the arithmetic landed on. Fixed by using `suffix(n)`.
+
 ## COB script IK getters ([SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift))
 
 `getUnitValue` (opcode `0x10042000`) and `getFunctionResult` (opcode `0x10043000`) were both stubbed to push `0` regardless of what the COB script asked for. TA spider-class units calculate leg rotations at `Create` time via:
