@@ -60,16 +60,16 @@ class UnitBrowserViewController: NSViewController, ContentViewController {
     override func viewDidLoad() {
         let begin = Date()
         let unitsDirectory = shared.filesystem.root[directory: "units"] ?? FileSystem.Directory()
-        let units = unitsDirectory.items
-            .compactMap { $0.asFile() }
-            .filter { $0.hasExtension("fbi") }
+        var seenNames = Set<String>()
+        let units = unitsDirectory.allFiles(withExtension: "fbi")
             .sorted { FileSystem.sortNames($0.name, $1.name) }
+            .filter { seenNames.insert($0.baseName.lowercased()).inserted }
             .compactMap { try? shared.filesystem.openFile($0) }
             .compactMap { try? UnitInfo(contentsOf: $0) }
         self.units = units
         let end = Date()
-        print("UnitInfo list load time: \(end.timeIntervalSince(begin)) seconds")
-        
+        print("UnitInfo list load time: \(end.timeIntervalSince(begin)) seconds; units found: \(units.count)")
+
         textures = ModelTexturePack(loadFrom: shared.filesystem)
     }
     

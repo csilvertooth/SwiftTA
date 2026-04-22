@@ -133,27 +133,27 @@ public extension UnitInfo {
 public extension UnitInfo {
     
     static func collectUnits(from filesystem: FileSystem) -> [UnitInfo] {
-        
+
         guard let unitsDirectory = filesystem.root[directory: "units"] else { return [] }
-        
-        let units = unitsDirectory.files(withExtension: "fbi")
+
+        let units = unitsDirectory.allFiles(withExtension: "fbi")
             .compactMap { try? filesystem.openFile($0) }
             .compactMap { try? UnitInfo(contentsOf: $0) }
-        
+
         return units
     }
-    
+
     static func collectUnits(from filesystem: FileSystem, onlyAllowing allowedUnits: [String]) -> [UnitInfo] {
-        
+
         guard let unitsDirectory = filesystem.root[directory: "units"] else { return [] }
-        
+
         let allowed = Set(allowedUnits.map { $0.lowercased() })
-        
-        let units = unitsDirectory.files(withExtension: "fbi")
+
+        let units = unitsDirectory.allFiles(withExtension: "fbi")
             .filter { allowed.contains($0.baseName.lowercased()) }
             .compactMap { try? filesystem.openFile($0) }
             .compactMap { try? UnitInfo(contentsOf: $0) }
-        
+
         return units
     }
     

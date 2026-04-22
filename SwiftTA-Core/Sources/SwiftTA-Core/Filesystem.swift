@@ -320,7 +320,21 @@ public extension FileSystem.Directory {
             .compactMap { $0.asFile() }
             .filter { $0.hasExtension(ext) }
     }
-    
+
+    /// Recursively collects every file matching `ext` in this directory and all descendants.
+    func allFiles(withExtension ext: String) -> [FileSystem.File] {
+        var result: [FileSystem.File] = []
+        for item in items {
+            switch item {
+            case .file(let f):
+                if f.hasExtension(ext) { result.append(f) }
+            case .directory(let d):
+                result.append(contentsOf: d.allFiles(withExtension: ext))
+            }
+        }
+        return result
+    }
+
 }
 
 // MARK:- FileHandle
