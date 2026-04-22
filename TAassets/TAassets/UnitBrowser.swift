@@ -10,51 +10,85 @@ import Cocoa
 import SwiftTA_Core
 
 class UnitBrowserViewController: NSViewController, ContentViewController {
-    
+
     var shared = TaassetsSharedState.empty
+    private var allUnits: [UnitInfo] = []
     private var units: [UnitInfo] = []
     private var textures = ModelTexturePack()
-    
+    private var searchTerm: String = ""
+
     private var tableView: NSTableView!
+    private var searchField: NSSearchField!
     private var detailViewContainer: NSView!
     private let detailViewController = UnitDetailViewController()
     private var isShowingDetail = false
-    
+
     static let picSize: CGFloat = 64
-    
+
     override func loadView() {
         let bounds = NSRect(x: 0, y: 0, width: 480, height: 480)
         let mainView = NSView(frame: bounds)
-        
+
         let listWidth: CGFloat = 240
-        
-        let scrollView = NSScrollView(frame: NSMakeRect(0, 0, listWidth, bounds.size.height))
+        let searchHeight: CGFloat = 28
+
+        let searchField = NSSearchField(frame: NSMakeRect(4, bounds.size.height - searchHeight - 2, listWidth - 8, searchHeight - 4))
+        searchField.autoresizingMask = [.minYMargin]
+        searchField.placeholderString = "Filter units"
+        searchField.target = self
+        searchField.action = #selector(searchFieldChanged(_:))
+        searchField.sendsSearchStringImmediately = true
+        searchField.sendsWholeSearchString = false
+        mainView.addSubview(searchField)
+
+        let scrollView = NSScrollView(frame: NSMakeRect(0, 0, listWidth, bounds.size.height - searchHeight))
         scrollView.autoresizingMask = [.height]
         scrollView.borderType = .noBorder
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
-        
-        let tableView = NSTableView(frame: NSMakeRect(0, 0, listWidth, bounds.size.height))
+
+        let tableView = NSTableView(frame: NSMakeRect(0, 0, listWidth, bounds.size.height - searchHeight))
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(rawValue: "name"))
         column.width = listWidth-2
         tableView.addTableColumn(column)
         tableView.identifier = NSUserInterfaceItemIdentifier(rawValue: "units")
         tableView.headerView = nil
         tableView.rowHeight = UnitBrowserViewController.picSize
-        
+
         scrollView.documentView = tableView
-        
+
         tableView.dataSource = self
         tableView.delegate = self
         mainView.addSubview(scrollView)
-        
+
         let detail = NSView(frame: NSMakeRect(listWidth, 0, bounds.size.width - listWidth, bounds.size.height))
         detail.autoresizingMask = [.width, .height]
         mainView.addSubview(detail)
-        
+
         self.view = mainView
         self.detailViewContainer = detail
         self.tableView = tableView
+        self.searchField = searchField
+    }
+
+    @objc private func searchFieldChanged(_ sender: NSSearchField) {
+        searchTerm = sender.stringValue.trimmingCharacters(in: .whitespaces)
+        applyFilter()
+    }
+
+    private func applyFilter() {
+        if searchTerm.isEmpty {
+            units = allUnits
+        } else {
+            let term = searchTerm.lowercased()
+            units = allUnits.filter {
+                $0.name.lowercased().contains(term)
+                    || $0.title.lowercased().contains(term)
+                    || $0.description.lowercased().contains(term)
+                    || $0.object.lowercased().contains(term)
+            }
+        }
+        tableView.reloadData()
     }
     
     override func viewDidLoad() {
@@ -84,6 +118,7 @@ class UnitBrowserViewController: NSViewController, ContentViewController {
             .filter { seenNames.insert($0.baseName.lowercased()).inserted }
             .compactMap { try? shared.filesystem.openFile($0) }
             .compactMap { try? UnitInfo(contentsOf: $0) }
+        self.allUnits = units
         self.units = units
         let end = Date()
         print("UnitInfo list load time: \(end.timeIntervalSince(begin)) seconds; units found: \(units.count) (from \(fbiFiles.count) FBI files)")

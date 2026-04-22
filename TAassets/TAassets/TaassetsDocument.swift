@@ -167,12 +167,32 @@ class TaassetsViewController: NSViewController {
     
     override func viewWillAppear() {
         super.viewWillAppear()
-        
+
+        applySidebarIcons()
+
         // There will be nothing selected the first time this view appears.
         // Select a default in this case.
         if selectedButton == nil {
             unitsButton.state = .on
             didChangeSelection(unitsButton)
+        }
+    }
+
+    private func applySidebarIcons() {
+        guard #available(macOS 11.0, *) else { return }
+        let entries: [(NSButton, String, String)] = [
+            (unitsButton,   "cube.fill",       "Units"),
+            (weaponsButton, "scope",           "Weapons"),
+            (mapsButton,    "map.fill",        "Maps"),
+            (filesButton,   "folder.fill",     "Files"),
+        ]
+        for (button, symbol, label) in entries {
+            if let image = NSImage(systemSymbolName: symbol, accessibilityDescription: label) {
+                image.isTemplate = true
+                button.image = image
+                button.imagePosition = .imageAbove
+                button.imageScaling = .scaleProportionallyDown
+            }
         }
     }
     

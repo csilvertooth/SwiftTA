@@ -13,7 +13,9 @@ import SwiftTA_Core
 class MetalMapView: NSView, MapViewLoader, MTKViewDelegate {
     
     private(set) var viewState = MetalTntViewState()
-    
+    private(set) var mapInfo: MapInfo?
+    private(set) var mapResolution: Size2<Int> = .zero
+
     private let library: MTLLibrary
     private let commandQueue: MTLCommandQueue
     private var tntRenderer: MetalTntRenderer?
@@ -21,7 +23,7 @@ class MetalMapView: NSView, MapViewLoader, MTKViewDelegate {
     
     private unowned let metalView: MTKView
     private unowned let scrollView: NSScrollView
-    private unowned let emptyView: NSView
+    private unowned let emptyView: MapOverlayView
     
     required init?(tntViewFrame frameRect: CGRect) {
         //        self.stateProvider = stateProvider
@@ -46,8 +48,7 @@ class MetalMapView: NSView, MapViewLoader, MTKViewDelegate {
         scrollView.borderType = .noBorder
         scrollView.autoresizingMask = [.width, .height]
         
-        let emptyView = Dummy(frame: frameRect)
-        emptyView.alphaValue = 0
+        let emptyView = MapOverlayView(frame: frameRect)
         
         self.library = library
         self.commandQueue = metalCommandQueue
@@ -76,13 +77,22 @@ class MetalMapView: NSView, MapViewLoader, MTKViewDelegate {
     }
     
     func load(_ mapName: String, from filesystem: FileSystem) throws {
-        
+
         let beginMap = Date()
-        
+
         let beginOta = Date()
-        guard let otaFile = filesystem.root[filePath: "maps/" + mapName + ".ota"]
-            else { throw FileSystem.Directory.ResolveError.notFound }
+        let otaPath = "maps/" + mapName + ".ota"
+        let otaFile: FileSystem.File
+        if let f = filesystem.root[filePath: otaPath] {
+            otaFile = f
+        } else if let f = filesystem.root[directory: "maps"]?.allFiles(withExtension: "ota").first(where: { $0.baseName.lowercased() == mapName.lowercased() }) {
+            otaFile = f
+        } else {
+            throw FileSystem.Directory.ResolveError.notFound
+        }
         let info = try MapInfo(contentsOf: otaFile, in: filesystem)
+        self.mapInfo = info
+        emptyView.startPositions = info.schema.first?.startPositions ?? []
         let endOta = Date()
         
         let tileCountString: String
@@ -132,46 +142,53 @@ class MetalMapView: NSView, MapViewLoader, MTKViewDelegate {
         }
         
         try? renderer.load(map, using: palette)
+        mapResolution = map.resolution
         emptyView.frame = NSRect(size: map.resolution)
-        
-        scrollView.magnification = 1.0
+        emptyView.needsDisplay = true
+
+        scrollView.magnification = zoomToFit(resolution: map.resolution)
         scrollView.contentView.scroll(to: .zero)
-        
+
         DispatchQueue.main.async {
             self.scrollView.flashScrollers()
         }
-        
+
         try? renderer.configure(for: MetalHost(view: metalView, device: device, library: library))
         self.tntRenderer = renderer
     }
-    
+
     func load(_ map: TakMapModel, from filesystem: FileSystem) {
-        //        let contentView = TakMapTileView(frame: NSRect(size: map.resolution))
-        //        contentView.load(map, filesystem)
-        //        contentView.drawFeatures = drawFeatures
-        //        scrollView.documentView = contentView
-        
         guard let device = metalView.device else { return }
         let renderer = DynamicTileMetalTntViewRenderer(device)
-        
+
         try? renderer.load(map, from: filesystem)
+        mapResolution = map.resolution
         emptyView.frame = NSRect(size: map.resolution)
-        
-        scrollView.magnification = 1.0
+        emptyView.needsDisplay = true
+
+        scrollView.magnification = zoomToFit(resolution: map.resolution)
         scrollView.contentView.scroll(to: .zero)
-        
+
         DispatchQueue.main.async {
             self.scrollView.flashScrollers()
         }
-        
+
         try? renderer.configure(for: MetalHost(view: metalView, device: device, library: library))
         self.tntRenderer = renderer
     }
-    
+
+    private func zoomToFit(resolution: Size2<Int>) -> CGFloat {
+        let viewport = scrollView.contentView.bounds.size
+        guard viewport.width > 0, viewport.height > 0, resolution.width > 0, resolution.height > 0 else { return 1.0 }
+        let sx = viewport.width / CGFloat(resolution.width)
+        let sy = viewport.height / CGFloat(resolution.height)
+        return max(0.1, min(1.0, min(sx, sy)))
+    }
+
     func clear() {
-        //        drawFeatures = nil
-        //        scrollView.documentView = nil
         tntRenderer = nil
+        mapInfo = nil
+        emptyView.startPositions = []
     }
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -218,12 +235,51 @@ class MetalMapView: NSView, MapViewLoader, MTKViewDelegate {
         }
     }
     
-    private class Dummy: NSView {
-        override var isFlipped: Bool {
-            return true
+}
+
+class MapOverlayView: NSView {
+
+    override var isFlipped: Bool { true }
+
+    var startPositions: [Point2<Int>] = [] { didSet { needsDisplay = true } }
+    var showMarkers: Bool = true { didSet { needsDisplay = true } }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = false
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard showMarkers, !startPositions.isEmpty, let ctx = NSGraphicsContext.current?.cgContext else { return }
+
+        let radius: CGFloat = 18
+        let fillColor = NSColor(calibratedRed: 1.0, green: 0.75, blue: 0.15, alpha: 0.55).cgColor
+        let strokeColor = NSColor(calibratedRed: 0.25, green: 0.18, blue: 0.0, alpha: 0.95).cgColor
+        let labelAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.boldSystemFont(ofSize: 16),
+            .foregroundColor: NSColor.black,
+        ]
+
+        for (index, pos) in startPositions.enumerated() {
+            let center = CGPoint(x: CGFloat(pos.x), y: CGFloat(pos.y))
+            let rect = CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
+
+            ctx.setFillColor(fillColor)
+            ctx.fillEllipse(in: rect)
+            ctx.setStrokeColor(strokeColor)
+            ctx.setLineWidth(3)
+            ctx.strokeEllipse(in: rect)
+
+            let number = "\(index + 1)"
+            let size = (number as NSString).size(withAttributes: labelAttrs)
+            let origin = CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2)
+            (number as NSString).draw(at: origin, withAttributes: labelAttrs)
         }
     }
-    
 }
 
 private let maxBuffersInFlight = 3
