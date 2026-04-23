@@ -18,11 +18,55 @@ jobs:
     runs-on: macos-14
     permissions:
       contents: write
+    env:
+      # Whether a Developer ID signing identity is available in this run.
+      # We set it from the presence of the certificate secret so PR builds
+      # from forks (which don't see secrets) still produce an unsigned app
+      # instead of failing the whole pipeline.
+      HAVE_SIGNING: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' }}
+      HAVE_NOTARY: ${{ secrets.MACOS_NOTARIZATION_APPLE_ID != '' && secrets.MACOS_NOTARIZATION_TEAM_ID != '' && secrets.MACOS_NOTARIZATION_PASSWORD != '' }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Xcode version
         run: xcodebuild -version
+
+      - name: Import signing certificate
+        if: env.HAVE_SIGNING == 'true'
+        env:
+          CERT_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+
+          echo "$CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" \
+            -P "$CERT_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | xargs)
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+          rm -f "$CERT_PATH"
+
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | \
+            awk -F'"' '/Developer ID Application/ { print $2; exit }')
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::Developer ID Application identity not found in imported keychain"
+            exit 1
+          fi
+          echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "Imported signing identity: $IDENTITY"
 
       - name: Resolve Swift packages
         run: |
@@ -32,36 +76,93 @@ jobs:
 
       - name: Build TAassets (Release)
         run: |
-          xcodebuild \
-            -workspace SwiftTA.xcworkspace \
-            -scheme TAassets \
-            -destination 'platform=macOS' \
-            -configuration Release \
-            -derivedDataPath build/DerivedData \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            build
+          if [ "$HAVE_SIGNING" = "true" ]; then
+            xcodebuild \
+              -workspace SwiftTA.xcworkspace \
+              -scheme TAassets \
+              -destination 'platform=macOS' \
+              -configuration Release \
+              -derivedDataPath build/DerivedData \
+              CODE_SIGN_STYLE=Manual \
+              CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
+              ENABLE_HARDENED_RUNTIME=YES \
+              OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
+              build
+          else
+            xcodebuild \
+              -workspace SwiftTA.xcworkspace \
+              -scheme TAassets \
+              -destination 'platform=macOS' \
+              -configuration Release \
+              -derivedDataPath build/DerivedData \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO \
+              build
+          fi
 
       - name: Build HPIView (Release)
         run: |
-          xcodebuild \
-            -workspace SwiftTA.xcworkspace \
-            -scheme HPIView \
-            -destination 'platform=macOS' \
-            -configuration Release \
-            -derivedDataPath build/DerivedData \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            build
+          if [ "$HAVE_SIGNING" = "true" ]; then
+            xcodebuild \
+              -workspace SwiftTA.xcworkspace \
+              -scheme HPIView \
+              -destination 'platform=macOS' \
+              -configuration Release \
+              -derivedDataPath build/DerivedData \
+              CODE_SIGN_STYLE=Manual \
+              CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
+              ENABLE_HARDENED_RUNTIME=YES \
+              OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
+              build
+          else
+            xcodebuild \
+              -workspace SwiftTA.xcworkspace \
+              -scheme HPIView \
+              -destination 'platform=macOS' \
+              -configuration Release \
+              -derivedDataPath build/DerivedData \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO \
+              build
+          fi
+
+      - name: Notarize and staple
+        if: env.HAVE_SIGNING == 'true' && env.HAVE_NOTARY == 'true'
+        env:
+          NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARIZATION_APPLE_ID }}
+          NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARIZATION_TEAM_ID }}
+          NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
+        run: |
+          set -euo pipefail
+          PRODUCTS=build/DerivedData/Build/Products/Release
+
+          for APP in TAassets HPIView; do
+            APP_PATH="$PRODUCTS/$APP.app"
+            ZIP_FOR_NOTARY="$RUNNER_TEMP/$APP-notary.zip"
+
+            echo "::group::Notarize $APP"
+            ditto -c -k --keepParent "$APP_PATH" "$ZIP_FOR_NOTARY"
+            xcrun notarytool submit "$ZIP_FOR_NOTARY" \
+              --apple-id "$NOTARY_APPLE_ID" \
+              --team-id "$NOTARY_TEAM_ID" \
+              --password "$NOTARY_PASSWORD" \
+              --wait
+            xcrun stapler staple "$APP_PATH"
+            xcrun stapler validate "$APP_PATH"
+            rm -f "$ZIP_FOR_NOTARY"
+            echo "::endgroup::"
+          done
 
       - name: Package .app bundles
         run: |
           mkdir -p dist
           PRODUCTS=build/DerivedData/Build/Products/Release
-          ( cd "$PRODUCTS" && zip -ry "$GITHUB_WORKSPACE/dist/TAassets-macOS.zip" TAassets.app )
-          ( cd "$PRODUCTS" && zip -ry "$GITHUB_WORKSPACE/dist/HPIView-macOS.zip" HPIView.app )
+          # ditto preserves resource forks / extended attributes on the .app
+          # bundle better than zip -r and matches what notarization expects.
+          ditto -c -k --sequesterRsrc --keepParent "$PRODUCTS/TAassets.app" dist/TAassets-macOS.zip
+          ditto -c -k --sequesterRsrc --keepParent "$PRODUCTS/HPIView.app" dist/HPIView-macOS.zip
           ls -lh dist
 
       - name: Upload build artifacts
@@ -81,9 +182,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           SHORT=$(git rev-parse --short HEAD)
-          NOTES="Rolling build from main.\n\nCommit: ${{ github.sha }}\nBuilt: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          # Delete prior latest release + tag (ignore failure if none exists).
+          if [ "$HAVE_SIGNING" = "true" ] && [ "$HAVE_NOTARY" = "true" ]; then
+            SIGNING_NOTE="✅ Signed and notarized by Apple — double-click to run."
+          elif [ "$HAVE_SIGNING" = "true" ]; then
+            SIGNING_NOTE="⚠️ Signed but not notarized — right-click → Open on first launch."
+          else
+            SIGNING_NOTE="⚠️ Unsigned — right-click → Open on first launch."
+          fi
+          NOTES="Rolling build from main.\n\nCommit: ${{ github.sha }}\nBuilt: $(date -u +%Y-%m-%dT%H:%M:%SZ)\n\n$SIGNING_NOTE"
           gh release delete latest --yes --cleanup-tag 2>/dev/null || true
           gh release create latest \
             dist/TAassets-macOS.zip \
@@ -98,9 +206,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           TAG="${GITHUB_REF#refs/tags/}"
           gh release create "$TAG" \
             dist/TAassets-macOS.zip \
             dist/HPIView-macOS.zip \
             --title "$TAG" \
             --generate-notes
+
+      - name: Clean up keychain
+        if: always() && env.HAVE_SIGNING == 'true'
+        run: |
+          if [ -n "${KEYCHAIN_PATH:-}" ] && [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
