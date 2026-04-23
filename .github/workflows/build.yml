@@ -72,9 +72,20 @@ jobs:
             echo "::error::Re-export from Keychain Access selecting BOTH the certificate AND the private key underneath it (Export 2 items)."
             exit 1
           fi
+          # Team ID lives in the identity's Common Name between the final parens,
+          # e.g. "Developer ID Application: Azimuth Systems LLC (D96ZZ6AWJZ)".
+          # The xcodeproj files carry the upstream maintainer's DEVELOPMENT_TEAM,
+          # so we must override it with the team that owns the signing cert —
+          # otherwise codesign errors with "No certificate for team X matching …".
+          TEAM_ID=$(echo "$IDENTITY" | sed -n 's/.*(\([^)]*\)).*/\1/p')
+          if [ -z "$TEAM_ID" ]; then
+            echo "::error::Could not parse Team ID out of identity: $IDENTITY"
+            exit 1
+          fi
           echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "SIGN_TEAM_ID=$TEAM_ID" >> "$GITHUB_ENV"
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
-          echo "Imported signing identity: $IDENTITY"
+          echo "Imported signing identity: $IDENTITY (team $TEAM_ID)"
 
       - name: Resolve Swift packages
         run: |
@@ -93,6 +104,7 @@ jobs:
               -derivedDataPath build/DerivedData \
               CODE_SIGN_STYLE=Manual \
               CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
+              DEVELOPMENT_TEAM="$SIGN_TEAM_ID" \
               ENABLE_HARDENED_RUNTIME=YES \
               OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
               build
@@ -120,6 +132,7 @@ jobs:
               -derivedDataPath build/DerivedData \
               CODE_SIGN_STYLE=Manual \
               CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
+              DEVELOPMENT_TEAM="$SIGN_TEAM_ID" \
               ENABLE_HARDENED_RUNTIME=YES \
               OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
               build
