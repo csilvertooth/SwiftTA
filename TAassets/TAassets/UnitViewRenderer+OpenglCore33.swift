@@ -601,22 +601,23 @@ private class GLBufferedModel {
         let sin = Vector3f( anims.turn.map { Darwin.sin($0 * rad2deg) } )
         let cos = Vector3f( anims.turn.map { Darwin.cos($0 * rad2deg) } )
         
+        // Yaw-outermost rotation order — see UnitModel+Bounds.pieceLocalTransform.
         let t = Matrix4x4f(
             cos.y * cos.z,
-            (sin.y * cos.x) + (sin.x * cos.y * sin.z),
-            (sin.x * sin.y) - (cos.x * cos.y * sin.z),
+            sin.y * cos.z,
+            -sin.z,
             0,
-            
-            -sin.y * cos.z,
-            (cos.x * cos.y) - (sin.x * sin.y * sin.z),
-            (sin.x * cos.y) + (cos.x * sin.y * sin.z),
+
+            (cos.y * sin.z * sin.x) - (sin.y * cos.x),
+            (sin.y * sin.z * sin.x) + (cos.y * cos.x),
+            cos.z * sin.x,
             0,
-            
-            sin.z,
-            -sin.x * cos.z,
-            cos.x * cos.z,
+
+            (cos.y * sin.z * cos.x) + (sin.y * sin.x),
+            (sin.y * sin.z * cos.x) - (cos.y * sin.x),
+            cos.z * cos.x,
             0,
-            
+
             offset.x - move.x,
             offset.y - move.z,
             offset.z + move.y,

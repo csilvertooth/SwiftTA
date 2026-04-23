@@ -523,25 +523,27 @@ private extension MetalModel {
         let sin = vector_float3( anims.turn.map { Darwin.sin($0 * rad2deg) } )
         let cos = vector_float3( anims.turn.map { Darwin.cos($0 * rad2deg) } )
         
+        // R = R_SIMDz(turn.y) · R_SIMDy(turn.z) · R_SIMDx(turn.x). See
+        // UnitModel+Bounds.pieceLocalTransform for why yaw is outermost.
         let t = matrix_float4x4(columns: (
             vector_float4(
             cos.y * cos.z,
-            (sin.y * cos.x) + (sin.x * cos.y * sin.z),
-            (sin.x * sin.y) - (cos.x * cos.y * sin.z),
+            sin.y * cos.z,
+            -sin.z,
             0),
-            
+
             vector_float4(
-            -sin.y * cos.z,
-            (cos.x * cos.y) - (sin.x * sin.y * sin.z),
-            (sin.x * cos.y) + (cos.x * sin.y * sin.z),
+            (cos.y * sin.z * sin.x) - (sin.y * cos.x),
+            (sin.y * sin.z * sin.x) + (cos.y * cos.x),
+            cos.z * sin.x,
             0),
-            
+
             vector_float4(
-            sin.z,
-            -sin.x * cos.z,
-            cos.x * cos.z,
+            (cos.y * sin.z * cos.x) + (sin.y * sin.x),
+            (sin.y * sin.z * cos.x) - (cos.y * sin.x),
+            cos.z * cos.x,
             0),
-            
+
             vector_float4(
             offset.x - move.x,
             offset.y - move.z,

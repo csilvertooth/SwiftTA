@@ -314,25 +314,26 @@ private extension MetalUnitDrawable.Instance {
         let sin = vector_float3( anims.turn.map { ($0 * deg2rad).sine } )
         let cos = vector_float3( anims.turn.map { ($0 * deg2rad).cosine } )
         
+        // Yaw-outermost rotation order — see UnitModel+Bounds.pieceLocalTransform.
         let t = matrix_float4x4(columns: (
             vector_float4(
                 cos.y * cos.z,
-                (sin.y * cos.x) + (sin.x * cos.y * sin.z),
-                (sin.x * sin.y) - (cos.x * cos.y * sin.z),
+                sin.y * cos.z,
+                -sin.z,
                 0),
-            
+
             vector_float4(
-                -sin.y * cos.z,
-                (cos.x * cos.y) - (sin.x * sin.y * sin.z),
-                (sin.x * cos.y) + (cos.x * sin.y * sin.z),
+                (cos.y * sin.z * sin.x) - (sin.y * cos.x),
+                (sin.y * sin.z * sin.x) + (cos.y * cos.x),
+                cos.z * sin.x,
                 0),
-            
+
             vector_float4(
-                sin.z,
-                -sin.x * cos.z,
-                cos.x * cos.z,
+                (cos.y * sin.z * cos.x) + (sin.y * sin.x),
+                (sin.y * sin.z * cos.x) - (cos.y * sin.x),
+                cos.z * cos.x,
                 0),
-            
+
             vector_float4(
                 offset.x - move.x,
                 offset.y - move.z,

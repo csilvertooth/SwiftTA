@@ -391,17 +391,18 @@ private func makeTransform(from piece: UnitModel.PieceState, with offset: Vector
     M[13] = offset.y - piece.move.z
     M[14] = offset.z + piece.move.y
     
+    // Yaw-outermost rotation order — see UnitModel+Bounds.pieceLocalTransform.
     M[0] = cos.y * cos.z
-    M[1] = (sin.y * cos.x) + (sin.x * cos.y * sin.z)
-    M[2] = (sin.x * sin.y) - (cos.x * cos.y * sin.z)
-    
-    M[4] = -sin.y * cos.z
-    M[5] = (cos.x * cos.y) - (sin.x * sin.y * sin.z)
-    M[6] = (sin.x * cos.y) + (cos.x * sin.y * sin.z)
-    
-    M[8] = sin.z
-    M[9] = -sin.x * cos.z
-    M[10] = cos.x * cos.z
+    M[1] = sin.y * cos.z
+    M[2] = -sin.z
+
+    M[4] = (cos.y * sin.z * sin.x) - (sin.y * cos.x)
+    M[5] = (sin.y * sin.z * sin.x) + (cos.y * cos.x)
+    M[6] = cos.z * sin.x
+
+    M[8] = (cos.y * sin.z * cos.x) + (sin.y * sin.x)
+    M[9] = (sin.y * sin.z * cos.x) - (cos.y * sin.x)
+    M[10] = cos.z * cos.x
     
     return M
 }

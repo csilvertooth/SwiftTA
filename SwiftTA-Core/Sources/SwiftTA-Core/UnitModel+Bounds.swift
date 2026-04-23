@@ -38,18 +38,26 @@ public extension UnitModel {
         let sx = Darwin.sin(turn.x * rad), cx = Darwin.cos(turn.x * rad)
         let sy = Darwin.sin(turn.y * rad), cy = Darwin.cos(turn.y * rad)
         let sz = Darwin.sin(turn.z * rad), cz = Darwin.cos(turn.z * rad)
+        // R = R_SIMDz(turn.y) · R_SIMDy(turn.z) · R_SIMDx(turn.x). Yaw is the
+        // outermost rotation; a child's turn.x (pitch) therefore rotates around
+        // an axis that stays in the horizontal plane regardless of the parent's
+        // own pitch. TA walker IK (CORMKL's Create/PositionLegs) assumes this —
+        // with pitch outermost the bisection's knee axis rotated into a near-
+        // vertical line whenever the shoulder had any pitch, making the
+        // distance-vs-angle function unimodal instead of monotonic and freezing
+        // the bisection at its degenerate minimum.
         return matrix_float4x4(columns: (
             vector_float4(cy * cz,
-                          (sy * cx) + (sx * cy * sz),
-                          (sx * sy) - (cx * cy * sz),
+                          sy * cz,
+                          -sz,
                           0),
-            vector_float4(-sy * cz,
-                          (cx * cy) - (sx * sy * sz),
-                          (sx * cy) + (cx * sy * sz),
+            vector_float4((cy * sz * sx) - (sy * cx),
+                          (sy * sz * sx) + (cy * cx),
+                          cz * sx,
                           0),
-            vector_float4(sz,
-                          -sx * cz,
-                          cx * cz,
+            vector_float4((cy * sz * cx) + (sy * sx),
+                          (sy * sz * cx) - (cy * sx),
+                          cz * cx,
                           0),
             vector_float4(offset.x - move.x,
                           offset.y - move.z,
