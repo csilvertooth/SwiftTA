@@ -18,6 +18,13 @@ class UnitViewController: NSViewController {
     private var loadTime: Double = 0
     private var shouldStartMoving = false
     private var lastScriptHeartbeat: Double = 0
+    /// Thread ID of the Create() invocation fired at load. While it's in the
+    /// script context we let scripts run normally so Create can do its IK
+    /// bisection and spawn helpers; once it finishes we kill every remaining
+    /// thread (PositionLegs/LegGroups/SmokeUnit etc.) so the unit sits in its
+    /// Create-time pose instead of running a forever-gait over an empty scene.
+    private var createThreadID: Int? = nil
+    private var didFreezeAfterCreate = false
     
     override func loadView() {
         let defaultFrame = NSRect(x: 0, y: 0, width: 640, height: 480)
@@ -59,7 +66,15 @@ class UnitViewController: NSViewController {
         
         loadTime = getTime()
         newUnit.scriptContext.startScript("Create")
-        shouldStartMoving = newUnit.info.maxVelocity > 0
+        // Remember the ID of the Create thread so we can tell when it has
+        // returned (and then freeze the whole script context).
+        createThreadID = newUnit.scriptContext.threads.last?.id
+        didFreezeAfterCreate = false
+        // Don't auto-trigger StartMoving — the viewer has no world translation,
+        // so a walk cycle just spins legs in place and masks whether Create's
+        // IK landed the feet on the ground. User can fire StartMoving manually
+        // from the script-functions menu when they want to see the gait.
+        shouldStartMoving = false
         
         viewState.isMoving = false
         viewState.movement = 0
@@ -196,9 +211,36 @@ extension UnitViewController: UnitViewStateProvider {
             viewState.rotateY = 0
             viewState.rotateZ = 160
             computeSceneSize()
+        case .some("d"):
+            dumpPieceState()
         default:
             ()
         }
+    }
+
+    private func dumpPieceState() {
+        guard let unit = unit else { return }
+        let model = unit.model
+        let instance = unit.modelInstance
+        func f(_ v: GameFloat) -> String {
+            return String(format: "%7.2f", Double(v))
+        }
+        Swift.print("=== Piece State Dump for \(unit.info.name) ===")
+        Swift.print("  threads=\(unit.scriptContext.threads.count) anims=\(unit.scriptContext.animations.count) roots=\(model.roots.map { model.pieces[$0].name })")
+        for i in 0..<model.pieces.count {
+            let p = model.pieces[i]
+            let s = instance.pieces[i]
+            let parents = model.parents[i].map { model.pieces[$0].name }.joined(separator: " > ")
+            let world = model.pieceWorldPosition(i, instance: instance)
+            let line = "  [\(i)] \(p.name)"
+                + " off=(\(f(p.offset.x)),\(f(p.offset.y)),\(f(p.offset.z)))"
+                + " turn=(\(f(s.turn.x)),\(f(s.turn.y)),\(f(s.turn.z)))"
+                + " move=(\(f(s.move.x)),\(f(s.move.y)),\(f(s.move.z)))"
+                + " world=(\(f(world.x)),\(f(world.y)),\(f(world.z)))"
+                + " hidden=\(s.hidden ? "Y" : "N") parents=[\(parents)]"
+            Swift.print(line)
+        }
+        Swift.print("=== End ===")
     }
     
     func updateAnimatingState(deltaTime: Double) {
@@ -229,6 +271,20 @@ extension UnitViewController: UnitViewStateProvider {
 
         unit.scriptContext.run(for: &unit.modelInstance, on: self)
         unit.scriptContext.applyAnimations(to: &unit.modelInstance, for: GameFloat(scaledDelta))
+
+        // Once Create returns, kill every background thread it spawned so the
+        // unit holds its IK pose instead of running PositionLegs/LegGroups
+        // forever. User-triggered scripts (via the script-functions menu) still
+        // run because they create new threads after this freeze point.
+        if !didFreezeAfterCreate, let createID = createThreadID {
+            if !unit.scriptContext.threads.contains(where: { $0.id == createID }) {
+                let dropped = unit.scriptContext.threads.count
+                unit.scriptContext.threads.removeAll()
+                unit.scriptContext.animations.removeAll()
+                didFreezeAfterCreate = true
+                Swift.print("Create finished; froze \(dropped) background thread(s)")
+            }
+        }
 
         if viewState.isMoving {
             let dt = GameFloat(scaledDelta * 10)
