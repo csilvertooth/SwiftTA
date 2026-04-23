@@ -273,9 +273,33 @@ So `sceneHeight = sceneWidthNeeded * aspectRatio >= modelDiameter` is guaranteed
 
 `Context.applyAnimations` now iterates the thread list after applying animations and flips any thread back to `.running` when no rotation / spin / translation matching its waited `(piece, axis)` is still in flight. `waitForTurn` / `waitForMove` also short-circuit at the call site when no matching animation is pending, so scripts like `turn X to Y now; wait-for-turn X;` don't stall waiting on something that already happened.
 
-## IK precision ([SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift))
+## Yaw-outermost piece rotation ([SwiftTA-Core/Sources/SwiftTA-Core/UnitModel+Bounds.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitModel+Bounds.swift) and every renderer-side transform site)
 
-Create's bisection IK needs to discriminate a single-degree change in the end-effector's hypotenuse distance from the shoulder. Packing piece positions as integer pixels lost that resolution — small angle increments produced the same rounded hypot and the bisection couldn't decide which half to take. Scaled the packed positions by 256 (8 bits of sub-pixel precision) before `packXZ` / `PIECE_Y`. `XZ_ATAN` and `XZ_HYPOT` only care about the ratio and scale consistency of their arguments, so the script comparisons stay correct.
+The original matrix built each piece's local transform as `R_SIMDx(turn.x) · R_SIMDy(turn.z) · R_SIMDz(turn.y)` — pitch outermost. CORMKL's bisection IK turns the shoulder to a non-zero pitch (`turn.x`), and on the next tick that pitch rotates the child knee's local X axis toward vertical. The knee-bend-vs-reach function then becomes unimodal instead of monotonic; bisection freezes at the degenerate end and `local2` drifts to ±105°.
+
+Changed the matrix to `R_SIMDz(turn.y) · R_SIMDy(turn.z) · R_SIMDx(turn.x)` (yaw outermost). A child's own `turn.x` now rotates around an axis that stays in the horizontal plane regardless of the parent's pitch, so the shoulder pitch no longer contaminates the knee bisection. Six call sites touched — `UnitModel+Bounds.pieceLocalTransform` for script reads, plus the five renderer transform builders in TAassets and the two SwiftTA-Metal/SwiftTA-OpenGL3 drawables.
+
+## Unsigned TA atan2 ([SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift))
+
+`taAtan2` was returning signed TA angles in `[-32768, 32768]`. Walker scripts compare against unsigned `[0, 65536)` constants — `LegGroups` pins its stride-target bisection with `XZ_ATAN(...) > 16384 && < 49152` (the second/third quadrant gate). With signed output, every third-quadrant angle was negative and failed the check, so the bisection couldn't distinguish "in target range" from "past it" and rolled to the ±200 game-unit edge — which drove the stride pieces out past Leg-0 reach. Folding negative turns into `[0, 1)` before the TA-unit conversion re-enables those quadrant checks and the Point pieces settle in sensible positions again.
+
+## GROUND_HEIGHT for the ground-less viewer ([SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift))
+
+CORMKL's `PositionLegs` thread runs every tick of `while (TRUE)` and issues:
+
+```
+move Point1 to y-axis [get GROUND_HEIGHT(get PIECE_XZ(Point1)) - get PIECE_Y(Point1)] speed [50.0]
+```
+
+with the same pattern for Point2..Point6. Each `Point` drives one of the six stride targets that the per-leg bisection IK aims for. Stubbing `GROUND_HEIGHT` to `0` made the target evaluate to `-PIECE_Y(Point1)` every tick, which swapped sign as soon as the move landed, and the `Point` piece oscillated 1-2 units around `y=0`. Because `Stride1..6` are parented to the oscillating points, the IK target moved every frame and the bisection could never settle — hence CORMKL's legs looking like they were "anchored at wrong points, moving in every direction".
+
+Fix: on `GROUND_HEIGHT`, scan the unit's pieces for the one whose current world XZ matches the queried packed coord, and return that piece's own world Y. The script's pattern is always `GROUND_HEIGHT(PIECE_XZ(P))`, so the match is exact and the subtraction collapses to zero — `Point` holds its baseline position and the IK bisection sees a stationary target. In a real game on terrain this becomes the actual terrain sample; the no-terrain unit viewer just needs a value that keeps the walker stable.
+
+Also disabled the 1-second `StartMoving` auto-kick in [UnitView.swift](TAassets/TAassets/UnitView.swift): the viewer can't translate the unit through a world, so a walk cycle here just cycles leg phases in place and obscures whether the Create-time IK is landing the feet correctly. Pressing `d` dumps every piece's current offset, turn, move, world position, and parent chain for targeted diagnosis.
+
+## PIECE_XZ / PIECE_Y native TA units ([SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift](SwiftTA-Core/Sources/SwiftTA-Core/UnitScript+Instructions.swift))
+
+An earlier pass scaled packed piece positions by 256 to give the IK bisection sub-pixel precision. That broke every mod walker whose Create script compared `XZ_HYPOT` against fixed integer thresholds (leg-length targets, reach cutoffs): with the output scaled 256× but the constant unchanged, the bisection always picked the same branch and the legs flailed out of the ground plane. Real TA packs `PIECE_XZ` as integer game units and returns `XZ_HYPOT` in the same units, so script constants are sized to that native resolution. Reverted the scaling and now `packXZ` / `PIECE_Y` return the position rounded to integer TA units — bisection loses the 8 fractional bits but now converges where the script author expected.
 
 ## Inline `turn/move now` + world-space piece queries
 
