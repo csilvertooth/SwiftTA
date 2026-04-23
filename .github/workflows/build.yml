@@ -165,11 +165,36 @@ jobs:
 
             echo "::group::Notarize $APP"
             ditto -c -k --keepParent "$APP_PATH" "$ZIP_FOR_NOTARY"
-            xcrun notarytool submit "$ZIP_FOR_NOTARY" \
+
+            # Submit with JSON output so we can read the status even when
+            # it's Invalid (notarytool returns 0 in that case — it only
+            # non-zeros on transport failures).
+            SUBMIT_JSON=$(xcrun notarytool submit "$ZIP_FOR_NOTARY" \
               --apple-id "$NOTARY_APPLE_ID" \
               --team-id "$NOTARY_TEAM_ID" \
               --password "$NOTARY_PASSWORD" \
-              --wait
+              --wait \
+              --output-format json)
+            echo "$SUBMIT_JSON"
+
+            SUBMISSION_ID=$(echo "$SUBMIT_JSON" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -n1)
+            STATUS=$(echo "$SUBMIT_JSON" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p' | head -n1)
+
+            # Always pull the log — on Accepted it's empty/informational, on
+            # Invalid it tells us exactly which binary Apple rejected and why.
+            echo "--- notarytool log for $APP ($SUBMISSION_ID) ---"
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --apple-id "$NOTARY_APPLE_ID" \
+              --team-id "$NOTARY_TEAM_ID" \
+              --password "$NOTARY_PASSWORD" \
+              2>&1 || true
+            echo "--- end notarytool log ---"
+
+            if [ "$STATUS" != "Accepted" ]; then
+              echo "::error::Notarization for $APP returned status: $STATUS (submission $SUBMISSION_ID)"
+              exit 1
+            fi
+
             xcrun stapler staple "$APP_PATH"
             xcrun stapler validate "$APP_PATH"
             rm -f "$ZIP_FOR_NOTARY"
