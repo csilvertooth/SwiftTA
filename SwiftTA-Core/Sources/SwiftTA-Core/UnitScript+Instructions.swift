@@ -687,6 +687,17 @@ private func getUnitValue(execution: ScriptExecutionContext) throws {
             result = 0
         case .unitXZ, .unitY, .unitHeight, .groundHeight:
             result = 0
+        // TADR target-scan extension stubs. CORMKL (and most TAESC mod
+        // units) iterate `for id := MIN_ID to MAX_ID do` inside Detect().
+        // Returning MIN_ID = 1, MAX_ID = 0 makes that loop run zero times
+        // so the scan exits cleanly instead of treating id=0 as a
+        // hostile neighbour. MY_ID has no viewer meaning; 0 is fine.
+        case .minUnitID:
+            result = 1
+        case .maxUnitID:
+            result = 0
+        case .myUnitID:
+            result = 0
         default:
             ()
         }
@@ -764,6 +775,18 @@ private func getFunctionResult(execution: ScriptExecutionContext) throws {
             }
         case .unitXZ, .unitY, .unitHeight:
             result = 0
+        // TADR extensions. We only hit these when mod scripts scan other
+        // units; given we report an empty unit range from getUnitValue,
+        // in-range neighbours shouldn't actually be passed as params
+        // here. The stubs still cover the case where a script uses MY_ID
+        // (i.e. our single viewer unit) as the argument, so we report it
+        // as fully built, allied with itself, and local.
+        case .unitBuildPercentLeft:
+            result = 0
+        case .unitAllied:
+            result = 1
+        case .unitIsOnThisComp:
+            result = 1
         default:
             ()
         }

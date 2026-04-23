@@ -247,7 +247,33 @@ public extension UnitScript {
         
         /// #define ARMORED				20	// set or get
         case armored            = 20
-        
+
+        // -----------------------------------------------------------------
+        // TADR / TA Recorder COB extensions. These are the values used by
+        // mod scripts to iterate over other units, check alliances, and so
+        // on. The full list is large (see TADR's COB_extensions.pas) and
+        // most are sim-state-dependent; SwiftTA only stubs the handful
+        // that modded unit scripts actually call on load so that Detect()
+        // / target-scan loops exit cleanly instead of treating everything
+        // as hostile. See UnitScript+Instructions.swift for the returned
+        // values.
+        // -----------------------------------------------------------------
+
+        /// TADR MIN_ID — lowest valid unit ID in the game's unit array.
+        case minUnitID           = 69
+        /// TADR MAX_ID — highest valid unit ID in the game's unit array.
+        case maxUnitID           = 70
+        /// TADR MY_ID — the ID of the unit running this COB script.
+        case myUnitID            = 71
+        /// TADR UNIT_BUILD_PERCENT_LEFT(unit_id) — same semantics as the
+        /// standard BUILD_PERCENT_LEFT but addressable to any unit ID.
+        case unitBuildPercentLeft = 73
+        /// TADR UNIT_ALLIED(unit_id) — 1 if that unit is allied, else 0.
+        case unitAllied          = 74
+        /// TADR UNIT_IS_ON_THIS_COMP(unit_id) — 1 if the unit is local to
+        /// this machine (vs a multiplayer peer); 0 otherwise.
+        case unitIsOnThisComp    = 75
+
         // New in TA:K
         /// #define WEAPON_AIM_ABORTED	21
         /// #define WEAPON_READY		22

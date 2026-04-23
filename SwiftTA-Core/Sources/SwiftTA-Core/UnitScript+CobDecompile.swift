@@ -730,6 +730,13 @@ extension UnitScript.UnitValue {
         case .yardOpen:         return "YARD_OPEN"
         case .buggerOff:        return "BUGGER_OFF"
         case .armored:          return "ARMORED"
+        // TADR / TA Recorder extension identifiers.
+        case .minUnitID:        return "MIN_ID"
+        case .maxUnitID:        return "MAX_ID"
+        case .myUnitID:         return "MY_ID"
+        case .unitBuildPercentLeft: return "UNIT_BUILD_PERCENT_LEFT"
+        case .unitAllied:       return "UNIT_ALLIED"
+        case .unitIsOnThisComp: return "UNIT_IS_ON_THIS_COMP"
         }
     }
 }
