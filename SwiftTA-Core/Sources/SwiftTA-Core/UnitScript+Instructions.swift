@@ -724,17 +724,17 @@ private func getFunctionResult(execution: ScriptExecutionContext) throws {
         case .pieceXZ:
             if let pos = pieceWorldPosition(scriptPiece: params[0], execution: execution) {
                 // UnitModel remaps 3DO (x, y, z) → SIMD (x, z, y) so pos.y is TA's Z
-                // (horizontal depth) and pos.z is TA's Y (vertical height). The IK
-                // bisection loops need sub-pixel precision to discriminate between
-                // small angle increments, so positions are scaled by
-                // IKPositionScale before being packed. XZ_ATAN / XZ_HYPOT only
-                // care about ratios and scale consistency, so the unit-free
-                // scaling is safe as long as PIECE_Y matches.
-                result = packXZ(x: pos.x * IKPositionScale, z: pos.y * IKPositionScale)
+                // (horizontal depth) and pos.z is TA's Y (vertical height). TA's
+                // PIECE_XZ returns world coordinates truncated to integers in the
+                // native TA unit system; scripts compare the hypot against
+                // literal constants sized in those same integer units, so any
+                // scaling here would break every IK bisection that uses fixed
+                // thresholds.
+                result = packXZ(x: pos.x, z: pos.y)
             }
         case .pieceY:
             if let pos = pieceWorldPosition(scriptPiece: params[0], execution: execution) {
-                result = _StackValue(truncatingIfNeeded: Int((pos.z * IKPositionScale).rounded()))
+                result = _StackValue(truncatingIfNeeded: Int(pos.z.rounded()))
             }
         case .xzAtan:
             let (x, z) = unpackXZ(params[0])
@@ -746,7 +746,23 @@ private func getFunctionResult(execution: ScriptExecutionContext) throws {
             result = taAtan2(z: GameFloat(params[1]), x: GameFloat(params[0]))
         case .hypot:
             result = taHypot(x: GameFloat(params[0]), z: GameFloat(params[1]))
-        case .unitXZ, .unitY, .unitHeight, .groundHeight:
+        case .groundHeight:
+            // Walker scripts (CORMKL's PositionLegs, etc.) use `move Point to y-axis
+            // [GROUND_HEIGHT(PIECE_XZ(Point)) - PIECE_Y(Point)] speed [...]` to drive
+            // foot-target pieces to terrain level every tick. In the unit viewer we
+            // have no terrain, so returning 0 (the Y=0 plane) forces Point.move.y to
+            // track -PIECE_Y(Point) every tick — which just oscillates the piece up
+            // and down and destabilises the whole IK loop.
+            //
+            // Returning the queried point's own current Y makes the formula
+            // collapse to `target = Y - Y = 0`, so the reference piece holds its
+            // baseline position and the leg-IK sees a stationary target. When we
+            // wire this up against a real map later this becomes the actual
+            // terrain sample; the viewer just needs a stable value.
+            if let pos = pieceWorldPositionFromPackedXZ(params[0], execution: execution) {
+                result = _StackValue(truncatingIfNeeded: Int(pos.z.rounded()))
+            }
+        case .unitXZ, .unitY, .unitHeight:
             result = 0
         default:
             ()
@@ -763,10 +779,23 @@ private func pieceWorldPosition(scriptPiece: UnitScript.CodeUnit, execution: Scr
     return model.pieceWorldPosition(modelIndex, instance: execution.model.pointee)
 }
 
-/// Fixed-point scale applied to piece world positions before they are packed
-/// into PIECE_XZ / PIECE_Y integers. 256 gives 8 bits of sub-pixel precision,
-/// enough for a binary-search IK to discriminate single-degree increments.
-private let IKPositionScale: GameFloat = 256
+/// Locate a piece whose current world XZ matches the queried packed coordinate
+/// and return its full world position. Used by the GROUND_HEIGHT stub so that
+/// walker scripts' `move Point to y-axis [GROUND_HEIGHT(PIECE_XZ(Point)) -
+/// PIECE_Y(Point)]` pattern evaluates to a stable target instead of
+/// oscillating each tick.
+private func pieceWorldPositionFromPackedXZ(_ packed: UnitScript.CodeUnit, execution: ScriptExecutionContext) -> Vertex3f? {
+    let (qx, qz) = unpackXZ(packed)
+    let model = execution.process.model
+    let instance = execution.model.pointee
+    for i in 0..<model.pieces.count {
+        let pos = model.pieceWorldPosition(i, instance: instance)
+        if Int(pos.x.rounded()) == Int(qx.rounded()) && Int(pos.y.rounded()) == Int(qz.rounded()) {
+            return pos
+        }
+    }
+    return nil
+}
 
 private func packXZ(x: GameFloat, z: GameFloat) -> UnitScript.CodeUnit {
     // TA packs the XZ coordinate as (x << 16) | (z & 0xFFFF), both as 16-bit
@@ -783,11 +812,18 @@ private func unpackXZ(_ packed: UnitScript.CodeUnit) -> (GameFloat, GameFloat) {
     return (GameFloat(xRaw), GameFloat(zRaw))
 }
 
-/// TA represents a full turn as 65536 angle units. Returns atan2(z, x) remapped to that range.
+/// TA represents a full turn as 65536 angle units in the unsigned range
+/// [0, 65536). Walker scripts compare the result of XZ_ATAN / ATAN against
+/// constants like 16384 (90°), 32768 (180°), 49152 (270°) and rely on the
+/// third and fourth quadrants being represented as values > 32768 rather than
+/// as negatives; returning a signed result would make `> 16384 && < 49152`
+/// (the "second-or-third quadrant" check that drives LegGroups' bisection)
+/// fail for every actual second/third-quadrant angle.
 private func taAtan2(z: GameFloat, x: GameFloat) -> UnitScript.CodeUnit {
     guard x != 0 || z != 0 else { return 0 }
     let radians = atan2(z, x)
-    let turns = radians / (2 * .pi)
+    var turns = radians / (2 * .pi)
+    if turns < 0 { turns += 1 }
     return UnitScript.CodeUnit(truncatingIfNeeded: Int((turns * 65536).rounded()))
 }
 
