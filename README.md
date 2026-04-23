@@ -1,99 +1,138 @@
-# SwiftTA
+# SwiftTA — Asset Inspectors for Total Annihilation
 
-> **Fork notes (Apple silicon + mod browsing):** This branch of the original [loganjones/SwiftTA](https://github.com/loganjones/SwiftTA) focuses on making **TAassets** and **HPIView** useful asset inspectors on current Xcode / macOS with Apple silicon, and extends TAassets with a piece-level 3DO inspector, COB playback controls, and a mod-aware filesystem loader. Full write-up with code paths and troubleshooting is in [notes/SwiftTA_Apple_Silicon_Bootstrap.md](notes/SwiftTA_Apple_Silicon_Bootstrap.md).
->
-> **What's new in this fork**
-> - **Builds on Xcode 26 / macOS 26 / Apple silicon** — Swift disambiguation fixes, deployment target bump, Metal toolchain check, palette off-by-one fix.
-> - **Piece hierarchy inspector** (both apps) — outline of every 3DO piece with primitive / vertex / child counts. Selecting a piece tints it gold in the 3D view (new Metal uniform + flat piece-index interpolant). `Script Refs` column lists every COB module that manipulates each piece, extracted statically from the bytecode.
-> - **COB playback controls** (TAassets) — pause / step / 0×–2× speed slider, plus a "Run script…" pull-down for every module in the unit's COB so you can trigger `Activate`, `QueryPrimary`, etc. on demand and watch building internals animate piece by piece.
-> - **Camera controls** — scroll / pinch zoom, shift-drag pitch, `=` / `-` / `0` keys. Auto-fits the model on load so large buildings don't open zoomed past the viewport; re-fits on window resize.
-> - **Mod-aware filesystem** — a dynamic `Mods` menu lists every mod folder under `<base>/mods/` and rebuilds the merged filesystem on selection. Opening a mod folder directly (e.g. `~/tafiles/mods/taesc`) is auto-paired with the vanilla base it lives under. TAESC-style mods with nested `unitsE/` and off-spec `unitpicE/` directories are discovered recursively.
-> - **Map viewer** — auto-fits the map to the viewport on load, pinch/scroll zoom, numbered start-position markers pulled from the OTA schema, and edge-smear fixed via `clamp_to_zero` sampling plus a fragment-shader discard past the map's actual pixel size. Supports maps up to 8192 px in the on-screen render budget.
-> - **Weapons browser** — walks every `weapon*/` directory, parses each `.tdf` recursively, and lists every weapon block with a searchable detail pane (key, source file, weapon type, range, damage table, raw properties).
-> - **Searchable browsers** — live filter fields above the Units, Maps, and Weapons lists.
-> - **Browser chrome** — compact header strips carry unit/map details instead of centered oversized titles; the sidebar uses SF Symbols (cube, scope, map, folder) shifted clear of the traffic-light controls; TAassets window size/position persists across launches.
-> - **Tolerant standalone loading** — `gamedata/sidedata.tdf` is optional; palette lookup falls back through side → standard → neutral; missing `TA_Features_2013.ccx` is logged clearly.
-> - **HPIView extraction** — the previously-stub `Extract All` menu item is implemented, so you can now dump the entire archive to a folder.
-> - **Script VM hardening** — the COB `divide` opcode no longer traps on divide-by-zero (observed in TAESC scripts).
->
-> **Using the prebuilt TAassets**
-> 1. Clone this repo, open `SwiftTA.xcworkspace` in Xcode 26+, or build from CLI:
->    ```
->    xcodebuild -workspace SwiftTA.xcworkspace -scheme TAassets \
->               -destination 'platform=macOS,arch=arm64' \
->               -configuration Release build
->    ```
-> 2. Copy `build/.../Release/TAassets.app` anywhere you like (e.g. `~/Applications`).
-> 3. First launch: right-click the app → Open (ad-hoc signed, so Gatekeeper asks once).
-> 4. `File → Open…` → pick any directory of TA archives. Unit browser, file browser, and map browser all populate.
->    - Switch mods via the **Mods** menu.
->    - Open `<base>/mods/<ModName>` directly — it's treated as `base + mod` automatically.
->
-> **Using HPIView**
-> 1. Same build command with `-scheme HPIView`.
-> 2. `File → Open…` on any `.hpi`, `.ufo`, `.ccx`, `.gp3`, or `.gpf`.
-> 3. Drill into `objects3d/` → click a `.3DO` → browse the piece tree and script references on the right. Split divider resizes the outline.
-> 4. Extract single files, folders, or the whole archive from the **File** menu.
->
-> ---
+Two macOS apps for exploring Total Annihilation's game data. Point them at a folder of TA archives and browse every unit, map, weapon, and file inside:
 
-I like [Swift](https://swift.org); but I'd like to get to know it better outside of my day job: writing iOS apps and libraries. So I've decided to retrace the steps of an old project I worked on ages ago: [writing a clone of Total Annihilation](https://github.com/loganjones/nTA-Total-Annihilation-Clone).
+- **TAassets** — unified asset browser with live 3D model previews, COB script playback, a piece hierarchy inspector, map height / passability overlays, and mod support.
+- **HPIView** — a tree explorer for individual `.hpi` / `.ufo` / `.ccx` / `.gp3` / `.gpf` archives with per-file preview and bulk extraction.
 
-Currently, there is a simple game client (macOS, iOS, Linux) that loads up a hardcoded map and displays a single unit. See the [Build](#build) section for information on building and running the client.
+Both apps run natively on Apple silicon (and Intel Macs) on macOS 10.13+, read every TA-family archive format, handle TAESC-style mods, and do not require a copy of Xcode to use.
 
-![Screenshot](SwiftTA.jpg "SwiftTA Screenshot")
+## Download
 
-Additionally, there are a couple of macOS applications, [TAassets](#taassets) and [HPIView](#hpiview), that browse TA archive files (HPI & UFO files) and shows a preview of its contents.
+Grab the latest build from the [Releases page](https://github.com/csilvertooth/SwiftTA/releases):
 
-## Build
+- **`TAassets-macOS.zip`** — the full asset browser
+- **`HPIView-macOS.zip`** — archive viewer only
 
-#### macOS & iOS
+The `Latest main` prerelease is refreshed on every push to `main`. Versioned releases (e.g. `v0.1.0`) are posted when they're cut.
 
-Use the SwiftTA workspace (SwiftTA.xcworkspace) to build the macOS and/or the iOS game client.
+### First launch
 
-#### Linux
+The apps are **ad-hoc signed** (no paid Apple Developer certificate), so Gatekeeper will block the first launch. To open them:
 
-The Linux build was developed using the official Swift 4.2 binaries for Ubuntu 16.04 from Swift.org. Additionally, the following packages are necessary to build:
+1. Unzip the download and move the `.app` into `/Applications` or `~/Applications`.
+2. In Finder, **right-click → Open** (or Control-click → Open).
+3. Confirm the "unidentified developer" prompt once. macOS remembers the choice.
+
+After that, launch them like any other app.
+
+## What files do I need?
+
+You need a copy of the **original Total Annihilation** game files. The apps don't ship with any game content — they just read whatever TA archives you point them at.
+
+A working TA files directory typically contains:
+
+| File(s) | Source | Role |
+|---|---|---|
+| `ccdata.ccx`, `ccmaps.ccx`, `ccmiss.ccx` | Cavedog CD-ROM or digital copy | Core game data (units, tiles, scripts) |
+| `rev31.gp3` | TA patch 3.1 | Retail unit/engine patch |
+| `btdata.ccx` *(optional)* | Battle Tactics expansion | Expansion units |
+| `cc*.hpi`, `ta_features_2013.ccx` *(optional)* | Community | Additional features, maps, and the definitive feature pack |
+| `mods/<ModName>/` *(optional)* | Mod author | Drop a mod folder here — more on mods below |
+
+Any folder containing these files will work — the apps don't require a specific install location. A common layout:
+
 ```
-clang libicu-dev libcurl3 libglfw3-dev libglfw3 libpng-dev
+~/tafiles/
+  ccdata.ccx
+  ccmaps.ccx
+  ccmiss.ccx
+  rev31.gp3
+  TA_Features_2013.ccx
+  mods/
+    taesc/
+      TAESC.gp3
+      T2ESC.ufo
+      ...
 ```
 
-To build the game target, use a terminal to run `swift build` from the `SwiftTA/SwiftTA Linux` directory. To run the game, use `swift run`.
+If `TA_Features_2013.ccx` is missing, maps still render but some features (trees, rocks, wrecks) will not. TAassets logs a clear warning pointing at the missing feature pack.
 
-#### Windows
+## Using TAassets
 
-😅 ... yeah, about that. I haven't been able to get a build of the Swift compiler working on my Windows machine. It would be much easier if there were official builds available from Swift.org or even from Microsoft; but that is not a reality yet; maybe after Swift 5 and the ABI work? Another complication would be the lack of a C++ interface.
+1. Launch `TAassets.app`.
+2. `File → Open…` and pick your TA files folder (e.g. `~/tafiles`).
+3. The sidebar has four browsers: **Units**, **Weapons**, **Maps**, **Files**.
 
-## Game Assets
+### Units browser
 
-Running the current game client requires that the Total Annihilation game files be accessible in your current user's Documents directory. More specifically, the game is hardcoded to look in `~/Documents/Total Annihilation` for any .hpi files (or .ufo, .ccx, etc). This is certainly a hack and will be addressed in the future. Note: a symbolic link to another directory is acceptable; though the link must be named `Total Annihilation`.
+- Filter the list with the search field at the top.
+- Click a unit → 3D model renders on the right, textured and lit.
+- **Camera**: drag to rotate heading, shift-drag to pitch, scroll / pinch to zoom, `=` / `-` / `0` to zoom-in / zoom-out / reset.
+- **Piece hierarchy pane** on the right shows every 3DO piece with its primitive / vertex / child counts and every COB module that manipulates it. Click a piece to tint it gold in the 3D view.
+- **COB playback** at the bottom: Pause, Step, 0× – 4× speed slider.
+- **"Run script…" menu** fires any module in the unit's COB (`Create`, `Activate`, `QueryPrimary`, `StartMoving`, `StopMoving`, etc.).
+- Press **`d`** while the 3D view is focused to dump every piece's current offset / turn / move / world position to the console — useful for diagnosing IK.
+- On load, the viewer freezes background threads after `Create` returns so a walker unit holds its IK pose rather than running a forever-gait over an empty scene. Fire `StartMoving` manually if you want to see the gait.
 
-#### iOS
+### Maps browser
 
-On iOS, this is difficult due to the lack of direct filesystem access. The easiest way to get the files into the right place is to run the game app once; and then use iTunes to copy the `Total Annihilation` directory over to the app's container. Find [device] -> File Sharing -> SwiftTA and just drag-and-drop the entire folder.
+- Filter the list and click any map.
+- The header strip carries map info (planet, player count, wind, tidal, gravity).
+- Numbered markers show OTA start positions.
+- **Overlay toggle** (None / Heights / Passability):
+  - **Heights** tints each 16×16 cell from deep-blue (below sea level) through greens and yellows to white on high peaks.
+  - **Passability** shows cells colored by slope — red where the max elevation delta to any neighbor exceeds the slope threshold, blue under sea level, orange where a feature occupies the cell, green-to-yellow for passable terrain. A slider lets you tune the threshold to match different movement classes.
 
-#### Linux
+### Weapons browser
 
-To run the game, use `swift run` from the `SwiftTA/SwiftTA Linux` directory (this will also build the project if it hasn't been built already).
+- Walks every `weapon*/` directory and parses every `.tdf` recursively. Every weapon block from every mod's weapon tables is listed.
+- Click a weapon to see its key, source file, type, range, damage table, and raw properties.
 
-Note: You will need an OpenGL 3.0 capable graphics driver to run the game. For development, I've been using the default driver in a VMWare Fusion install.
+### Files browser
 
-## TAassets
+- The full merged virtual filesystem — every archive's contents layered into one tree, exactly how TA itself sees the files.
+- Useful when you want to find where a specific file lives across multiple archives.
 
-![Screenshot](TAassets.gif "TAassets Screenshot")
+### Using mods
 
-A macOS application that browses all of the assets contained in the TA archive files (HPI & UFO files) of a TA install directory. With this you can see the "virtual" file-sytem hierarchy that TA uses to load its assets. Additionally, you can browse specific categories (like units) to see a more complete representation (model + textures + animations).
+TAassets automatically discovers mod folders under `<base>/mods/`:
 
-You will need a Mac (natch) and a Total Annihilation installation somewhere on your browsable file-system. TAassets will read the files just as TA would; so any downloadable unit (a UFO) or other third-party material should "just work".
+- A dynamic **Mods** menu appears in the menu bar listing every available mod.
+- Selecting a mod rebuilds the merged filesystem with that mod layered on top of the vanilla base.
+- You can also open a mod folder directly (e.g. `~/tafiles/mods/taesc`) — TAassets will auto-pair it with the vanilla base it lives next to.
+- TAESC-style mods with nested `unitsE/`, `weaponE/`, and `unitpicE/` directories are discovered recursively.
 
-## HPIView
+## Using HPIView
 
-![Screenshot](HpiView.jpg "HpiView Screenshot")
+1. Launch `HPIView.app`.
+2. `File → Open…` and pick any `.hpi`, `.ufo`, `.ccx`, `.gp3`, or `.gpf` archive.
+3. The left pane shows the archive's directory tree. The right pane previews whichever file you click.
+4. Drill into `objects3d/` and click a `.3DO` to see the piece hierarchy plus references from the unit's COB script. Resize the split divider to adjust the outline width.
+5. **Extract from the File menu**: a single file, the current selection, or the entire archive to a chosen folder.
 
-A macOS application that browses the TA archive files (HPI & UFO files) and shows a preview of its contents. This is similar to an old Windows program (which I believe had the same name).
+## Build from source
 
-You will need a Mac and an HPI file or two. You can find these in Total Annihilation's main install directory. Any downloadable unit (a UFO) will work as well. As a bonus, you can also browse Total Annihilation: Kingdoms HPI files.
+If you'd rather build the apps yourself:
 
-## Next Steps
+```
+git clone https://github.com/csilvertooth/SwiftTA.git
+cd SwiftTA
+xcodebuild -workspace SwiftTA.xcworkspace -scheme TAassets \
+           -destination 'platform=macOS' \
+           -configuration Release \
+           CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO build
+```
 
-Continuous iteration on the game client. Real unit loading. A full object system. UI interaction. So much to do.
+Replace `-scheme TAassets` with `-scheme HPIView` for the other app. Built bundles land under `build/DerivedData/Build/Products/Release/`.
+
+You'll need Xcode 26+ on macOS 26+ (older combos should also work but aren't tested).
+
+## About this fork
+
+This repository is a fork of the original [loganjones/SwiftTA](https://github.com/loganjones/SwiftTA) focused on modernizing the TAassets / HPIView tooling. See [docs/FORK_NOTES.md](docs/FORK_NOTES.md) for the summary of additions, and [notes/SwiftTA_Apple_Silicon_Bootstrap.md](notes/SwiftTA_Apple_Silicon_Bootstrap.md) for the file-by-file technical write-up. The original upstream README (Swift 4.2 / Ubuntu 16.04 era game-client instructions) is preserved at [docs/ORIGINAL_README.md](docs/ORIGINAL_README.md).
+
+## Credits
+
+- [Logan Jones](https://github.com/loganjones) — original SwiftTA project, HPIView, TAassets.
+- Cavedog Entertainment — Total Annihilation (1997).
