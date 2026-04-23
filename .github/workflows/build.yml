@@ -1,0 +1,81 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS Release
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -workspace SwiftTA.xcworkspace \
+            -scheme TAassets \
+            -resolvePackageDependencies
+
+      - name: Build TAassets (Release)
+        run: |
+          xcodebuild \
+            -workspace SwiftTA.xcworkspace \
+            -scheme TAassets \
+            -destination 'platform=macOS' \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Build HPIView (Release)
+        run: |
+          xcodebuild \
+            -workspace SwiftTA.xcworkspace \
+            -scheme HPIView \
+            -destination 'platform=macOS' \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package .app bundles
+        run: |
+          mkdir -p dist
+          PRODUCTS=build/DerivedData/Build/Products/Release
+          ( cd "$PRODUCTS" && zip -ry "$GITHUB_WORKSPACE/dist/TAassets-macOS.zip" TAassets.app )
+          ( cd "$PRODUCTS" && zip -ry "$GITHUB_WORKSPACE/dist/HPIView-macOS.zip" HPIView.app )
+          ls -lh dist
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SwiftTA-macOS-${{ github.sha }}
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach to release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          draft: true
+          generate_release_notes: true
