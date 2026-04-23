@@ -58,10 +58,18 @@ jobs:
             "$KEYCHAIN_PATH"
           rm -f "$CERT_PATH"
 
+          echo "--- All codesigning identities in the imported keychain ---"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true
+          echo "--- All certificates in the imported keychain ---"
+          security find-certificate -a "$KEYCHAIN_PATH" | grep -E '"labl"|"subj"' || true
+          echo "-----------------------------------------------------------"
+
           IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | \
             awk -F'"' '/Developer ID Application/ { print $2; exit }')
           if [ -z "$IDENTITY" ]; then
-            echo "::error::Developer ID Application identity not found in imported keychain"
+            echo "::error::Developer ID Application identity (with matching private key) not found in imported keychain."
+            echo "::error::The .p12 most likely contained only the certificate, or the cert is not a Developer ID Application type."
+            echo "::error::Re-export from Keychain Access selecting BOTH the certificate AND the private key underneath it (Export 2 items)."
             exit 1
           fi
           echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
