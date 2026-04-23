@@ -105,6 +105,7 @@ jobs:
               CODE_SIGN_STYLE=Manual \
               CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
               DEVELOPMENT_TEAM="$SIGN_TEAM_ID" \
+              CODE_SIGN_ENTITLEMENTS="$GITHUB_WORKSPACE/ci/release.entitlements" \
               ENABLE_HARDENED_RUNTIME=YES \
               OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
               build
@@ -133,6 +134,7 @@ jobs:
               CODE_SIGN_STYLE=Manual \
               CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
               DEVELOPMENT_TEAM="$SIGN_TEAM_ID" \
+              CODE_SIGN_ENTITLEMENTS="$GITHUB_WORKSPACE/ci/release.entitlements" \
               ENABLE_HARDENED_RUNTIME=YES \
               OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
               build

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- com.apple.security.get-task-allow must be false (or absent) for any
+         notarized release. When no entitlements file is supplied, Xcode
+         injects get-task-allow=true for Debug-style signing, which Apple's
+         notary service rejects outright. This plist is shared by TAassets
+         and HPIView CI release builds. -->
+    <key>com.apple.security.get-task-allow</key>
+    <false/>
+</dict>
+</plist>
