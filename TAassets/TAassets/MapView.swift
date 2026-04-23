@@ -31,14 +31,28 @@ class MapViewController: NSViewController {
     func load(_ mapName: String, from filesystem: FileSystem) throws {
         try mapView.load(mapName, from: filesystem)
     }
-    
+
     func clear() {
         mapView.clear()
     }
-    
+
+    func setOverlayMode(_ mode: MapOverlayMode) {
+        mapView.setOverlayMode(mode)
+    }
+
+    func setSlopeThreshold(_ threshold: Int) {
+        mapView.setSlopeThreshold(threshold)
+    }
 }
 
 protocol MapViewLoader {
     func load(_ mapName: String, from filesystem: FileSystem) throws
     func clear()
+    func setOverlayMode(_ mode: MapOverlayMode)
+    func setSlopeThreshold(_ threshold: Int)
+}
+
+extension MapViewLoader {
+    func setOverlayMode(_ mode: MapOverlayMode) {}
+    func setSlopeThreshold(_ threshold: Int) {}
 }

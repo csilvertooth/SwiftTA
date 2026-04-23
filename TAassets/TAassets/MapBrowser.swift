@@ -178,11 +178,15 @@ class MapInfoCell: NSTableCellView {
 class MapDetailViewController: NSViewController {
 
     let mapView = MapViewController()
+    private var overlayMode: MapOverlayMode = .none
+    private var slopeThreshold: Int = 20
 
     func loadMap(in otaFile: FileSystem.File, from filesystem: FileSystem) throws {
         let name = otaFile.baseName
         try mapView.load(name, from: filesystem)
         mapTitle = name
+        mapView.setOverlayMode(overlayMode)
+        mapView.setSlopeThreshold(slopeThreshold)
 
         if let info = try? MapInfo(contentsOf: otaFile, in: filesystem) {
             container.detailLabel.stringValue = Self.describe(info, mapName: name)
@@ -195,6 +199,20 @@ class MapDetailViewController: NSViewController {
         mapView.clear()
         container.titleLabel.stringValue = ""
         container.detailLabel.stringValue = ""
+    }
+
+    @objc private func overlayModeChanged(_ sender: NSSegmentedControl) {
+        guard let mode = MapOverlayMode(rawValue: sender.selectedSegment) else { return }
+        overlayMode = mode
+        mapView.setOverlayMode(mode)
+        container.setSlopeControlVisible(mode == .passability)
+    }
+
+    @objc private func slopeThresholdChanged(_ sender: NSSlider) {
+        let value = Int(sender.integerValue)
+        slopeThreshold = value
+        container.updateSlopeLabel(value)
+        mapView.setSlopeThreshold(value)
     }
 
     var mapTitle: String {
@@ -222,10 +240,13 @@ class MapDetailViewController: NSViewController {
         return view as! ContainerView
     }
     
-    private class ContainerView: NSView {
+    fileprivate class ContainerView: NSView {
 
         unowned let titleLabel: NSTextField
         unowned let detailLabel: NSTextField
+        unowned let overlayControl: NSSegmentedControl
+        unowned let slopeSlider: NSSlider
+        unowned let slopeLabel: NSTextField
         let emptyContentView: NSView
 
         weak var contentView: NSView? {
@@ -245,6 +266,15 @@ class MapDetailViewController: NSViewController {
             }
         }
 
+        func setSlopeControlVisible(_ visible: Bool) {
+            slopeSlider.isHidden = !visible
+            slopeLabel.isHidden = !visible
+        }
+
+        func updateSlopeLabel(_ value: Int) {
+            slopeLabel.stringValue = "slope ≤ \(value)"
+        }
+
         override init(frame frameRect: NSRect) {
             let titleLabel = NSTextField(labelWithString: "")
             titleLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
@@ -256,27 +286,63 @@ class MapDetailViewController: NSViewController {
             detailLabel.textColor = NSColor.secondaryLabelColor
             detailLabel.lineBreakMode = .byTruncatingTail
 
+            let overlayControl = NSSegmentedControl(labels: MapOverlayMode.allCases.map { $0.title },
+                                                    trackingMode: .selectOne,
+                                                    target: nil,
+                                                    action: nil)
+            overlayControl.selectedSegment = 0
+            overlayControl.controlSize = .small
+            overlayControl.segmentStyle = .rounded
+
+            let slopeSlider = NSSlider(value: 20, minValue: 1, maxValue: 120, target: nil, action: nil)
+            slopeSlider.controlSize = .small
+            slopeSlider.isContinuous = true
+            slopeSlider.isHidden = true
+
+            let slopeLabel = NSTextField(labelWithString: "slope ≤ 20")
+            slopeLabel.font = NSFont.systemFont(ofSize: 11)
+            slopeLabel.textColor = NSColor.secondaryLabelColor
+            slopeLabel.isHidden = true
+
             let contentBox = NSView(frame: NSRect(x: 0, y: 0, width: 32, height: 32))
 
             self.titleLabel = titleLabel
             self.detailLabel = detailLabel
+            self.overlayControl = overlayControl
+            self.slopeSlider = slopeSlider
+            self.slopeLabel = slopeLabel
             self.emptyContentView = contentBox
             super.init(frame: frameRect)
 
             addSubview(contentBox)
             addSubview(titleLabel)
             addSubview(detailLabel)
+            addSubview(overlayControl)
+            addSubview(slopeSlider)
+            addSubview(slopeLabel)
 
             contentBox.translatesAutoresizingMaskIntoConstraints = false
             titleLabel.translatesAutoresizingMaskIntoConstraints = false
             detailLabel.translatesAutoresizingMaskIntoConstraints = false
+            overlayControl.translatesAutoresizingMaskIntoConstraints = false
+            slopeSlider.translatesAutoresizingMaskIntoConstraints = false
+            slopeLabel.translatesAutoresizingMaskIntoConstraints = false
 
             NSLayoutConstraint.activate([
                 titleLabel.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 8),
                 titleLabel.topAnchor.constraint(equalTo: self.topAnchor, constant: 6),
                 detailLabel.leadingAnchor.constraint(equalTo: titleLabel.trailingAnchor, constant: 12),
-                detailLabel.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
+                detailLabel.trailingAnchor.constraint(lessThanOrEqualTo: overlayControl.leadingAnchor, constant: -12),
                 detailLabel.firstBaselineAnchor.constraint(equalTo: titleLabel.firstBaselineAnchor),
+
+                overlayControl.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+                overlayControl.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
+
+                slopeLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+                slopeLabel.trailingAnchor.constraint(equalTo: overlayControl.trailingAnchor),
+                slopeSlider.centerYAnchor.constraint(equalTo: slopeLabel.centerYAnchor),
+                slopeSlider.trailingAnchor.constraint(equalTo: slopeLabel.leadingAnchor, constant: -6),
+                slopeSlider.widthAnchor.constraint(equalToConstant: 120),
                 ])
         }
 
@@ -288,17 +354,22 @@ class MapDetailViewController: NSViewController {
             NSLayoutConstraint.activate([
                 contentBox.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 4),
                 contentBox.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -4),
-                contentBox.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
+                contentBox.topAnchor.constraint(equalTo: overlayControl.bottomAnchor, constant: 6),
                 contentBox.bottomAnchor.constraint(equalTo: self.bottomAnchor, constant: -4),
                 ])
         }
 
     }
-    
+
     override func loadView() {
         let container = ContainerView(frame: NSRect(x: 0, y: 0, width: 256, height: 256))
         self.view = container
-        
+
+        container.overlayControl.target = self
+        container.overlayControl.action = #selector(overlayModeChanged(_:))
+        container.slopeSlider.target = self
+        container.slopeSlider.action = #selector(slopeThresholdChanged(_:))
+
         addChild(mapView)
         container.contentView = mapView.view
     }

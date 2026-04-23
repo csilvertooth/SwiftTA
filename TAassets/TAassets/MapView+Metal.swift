@@ -134,7 +134,7 @@ class MetalMapView: NSView, MapViewLoader, MTKViewDelegate {
     
     func load(_ map: TaMapModel, using palette: Palette) {
         guard let device = metalView.device else { return }
-        
+
         let renderer: MetalTntRenderer
         if map.resolution.max() > device.maximum2dTextureSize {
             print("Using tiled tnt renderer")
@@ -144,10 +144,11 @@ class MetalMapView: NSView, MapViewLoader, MTKViewDelegate {
             print("Using simple tnt renderer")
             renderer = SingleTextureMetalTntViewRenderer(device)
         }
-        
+
         try? renderer.load(map, using: palette)
         mapResolution = map.resolution
         emptyView.frame = NSRect(size: map.resolution)
+        configureOverlay(heightMap: map.heightMap, featureMap: map.featureMap, seaLevel: map.seaLevel, mapSize: map.mapSize)
         emptyView.needsDisplay = true
 
         scrollView.magnification = zoomToFit(resolution: map.resolution)
@@ -168,6 +169,7 @@ class MetalMapView: NSView, MapViewLoader, MTKViewDelegate {
         try? renderer.load(map, from: filesystem)
         mapResolution = map.resolution
         emptyView.frame = NSRect(size: map.resolution)
+        configureOverlay(heightMap: map.heightMap, featureMap: map.featureMap, seaLevel: map.seaLevel, mapSize: map.mapSize)
         emptyView.needsDisplay = true
 
         scrollView.magnification = zoomToFit(resolution: map.resolution)
@@ -179,6 +181,21 @@ class MetalMapView: NSView, MapViewLoader, MTKViewDelegate {
 
         try? renderer.configure(for: MetalHost(view: metalView, device: device, library: library))
         self.tntRenderer = renderer
+    }
+
+    private func configureOverlay(heightMap: HeightMap, featureMap: [Int?], seaLevel: Int, mapSize: Size2<Int>) {
+        emptyView.heightMap = heightMap
+        emptyView.featureMap = featureMap
+        emptyView.seaLevel = seaLevel
+        emptyView.mapSize = mapSize
+    }
+
+    func setOverlayMode(_ mode: MapOverlayMode) {
+        emptyView.overlayMode = mode
+    }
+
+    func setSlopeThreshold(_ threshold: Int) {
+        emptyView.slopeThreshold = max(1, threshold)
     }
 
     private func zoomToFit(resolution: Size2<Int>) -> CGFloat {
@@ -193,6 +210,10 @@ class MetalMapView: NSView, MapViewLoader, MTKViewDelegate {
         tntRenderer = nil
         mapInfo = nil
         emptyView.startPositions = []
+        emptyView.heightMap = nil
+        emptyView.featureMap = []
+        emptyView.seaLevel = 0
+        emptyView.mapSize = .zero
     }
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -245,12 +266,35 @@ class MetalMapView: NSView, MapViewLoader, MTKViewDelegate {
     
 }
 
+enum MapOverlayMode: Int, CaseIterable {
+    case none = 0
+    case heights
+    case passability
+
+    var title: String {
+        switch self {
+        case .none: return "None"
+        case .heights: return "Heights"
+        case .passability: return "Passability"
+        }
+    }
+}
+
 class MapOverlayView: NSView {
 
     override var isFlipped: Bool { true }
 
     var startPositions: [Point2<Int>] = [] { didSet { needsDisplay = true } }
     var showMarkers: Bool = true { didSet { needsDisplay = true } }
+
+    var overlayMode: MapOverlayMode = .none { didSet { if oldValue != overlayMode { needsDisplay = true } } }
+    /// Maximum per-neighbor elevation delta a ground unit can climb. Matches
+    /// the typical TA "medium KBOT" movement class; adjustable by the caller.
+    var slopeThreshold: Int = 20 { didSet { if oldValue != slopeThreshold && overlayMode == .passability { needsDisplay = true } } }
+    var heightMap: HeightMap? { didSet { if overlayMode != .none { needsDisplay = true } } }
+    var featureMap: [Int?] = []
+    var seaLevel: Int = 0
+    var mapSize: Size2<Int> = .zero
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -262,8 +306,88 @@ class MapOverlayView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        guard showMarkers, !startPositions.isEmpty, let ctx = NSGraphicsContext.current?.cgContext else { return }
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
 
+        drawOverlay(in: dirtyRect, ctx: ctx)
+
+        if showMarkers && !startPositions.isEmpty {
+            drawStartPositionMarkers(ctx: ctx)
+        }
+    }
+
+    private func drawOverlay(in dirtyRect: NSRect, ctx: CGContext) {
+        guard overlayMode != .none, let heightMap = heightMap, mapSize.area > 0 else { return }
+
+        let cellW = CGFloat(heightMap.sampleSize.width)
+        let cellH = CGFloat(heightMap.sampleSize.height)
+
+        // Only iterate cells that overlap the dirty rect.
+        let colStart = max(0, Int(floor(dirtyRect.minX / cellW)))
+        let colEnd = min(mapSize.width - 1, Int(floor(dirtyRect.maxX / cellW)))
+        let rowStart = max(0, Int(floor(dirtyRect.minY / cellH)))
+        let rowEnd = min(mapSize.height - 1, Int(floor(dirtyRect.maxY / cellH)))
+        guard colStart <= colEnd && rowStart <= rowEnd else { return }
+
+        let samples = heightMap.samples
+        let stride = mapSize.width
+
+        for row in rowStart...rowEnd {
+            for col in colStart...colEnd {
+                let index = row * stride + col
+                let elevation = samples[index]
+                let color: CGColor
+
+                switch overlayMode {
+                case .none:
+                    continue
+                case .heights:
+                    color = colorForElevation(elevation)
+                case .passability:
+                    color = colorForPassability(index: index, col: col, row: row, elevation: elevation, samples: samples, stride: stride)
+                }
+
+                ctx.setFillColor(color)
+                ctx.fill(CGRect(x: CGFloat(col) * cellW, y: CGFloat(row) * cellH, width: cellW, height: cellH))
+            }
+        }
+    }
+
+    private func colorForElevation(_ elevation: Int) -> CGColor {
+        // Deep water → shallow water → coast → grass → rock → snow.
+        let e = max(0, min(255, elevation))
+        let relativeToSea = e - seaLevel
+        if relativeToSea < 0 {
+            let depth = CGFloat(min(64, -relativeToSea)) / 64.0
+            return NSColor(calibratedRed: 0.0, green: 0.15 + 0.25 * (1 - depth), blue: 0.45 + 0.35 * (1 - depth), alpha: 0.55).cgColor
+        }
+        let t = CGFloat(min(255, relativeToSea)) / 255.0
+        let r = 0.25 + 0.7 * t
+        let g = 0.55 - 0.25 * t + 0.35 * max(0, t - 0.5)
+        let b = 0.15 + 0.65 * max(0, t - 0.75) / 0.25
+        return NSColor(calibratedRed: r, green: g, blue: b, alpha: 0.50).cgColor
+    }
+
+    private func colorForPassability(index: Int, col: Int, row: Int, elevation: Int, samples: [Int], stride: Int) -> CGColor {
+        if elevation < seaLevel {
+            return NSColor(calibratedRed: 0.1, green: 0.3, blue: 0.85, alpha: 0.55).cgColor
+        }
+        if index < featureMap.count, featureMap[index] != nil {
+            return NSColor(calibratedRed: 0.75, green: 0.55, blue: 0.0, alpha: 0.55).cgColor
+        }
+        var maxDelta = 0
+        if col > 0 { maxDelta = max(maxDelta, abs(elevation - samples[index - 1])) }
+        if col < mapSize.width - 1 { maxDelta = max(maxDelta, abs(elevation - samples[index + 1])) }
+        if row > 0 { maxDelta = max(maxDelta, abs(elevation - samples[index - stride])) }
+        if row < mapSize.height - 1 { maxDelta = max(maxDelta, abs(elevation - samples[index + stride])) }
+        if maxDelta > slopeThreshold {
+            return NSColor(calibratedRed: 0.85, green: 0.10, blue: 0.10, alpha: 0.55).cgColor
+        }
+        let t = CGFloat(min(slopeThreshold, maxDelta)) / CGFloat(max(1, slopeThreshold))
+        // Green → yellow as slope climbs within the passable band.
+        return NSColor(calibratedRed: 0.2 + 0.7 * t, green: 0.75 - 0.1 * t, blue: 0.2, alpha: 0.40).cgColor
+    }
+
+    private func drawStartPositionMarkers(ctx: CGContext) {
         let radius: CGFloat = 18
         let fillColor = NSColor(calibratedRed: 1.0, green: 0.75, blue: 0.15, alpha: 0.55).cgColor
         let strokeColor = NSColor(calibratedRed: 0.25, green: 0.18, blue: 0.0, alpha: 0.95).cgColor
