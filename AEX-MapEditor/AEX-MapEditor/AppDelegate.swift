@@ -107,15 +107,54 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @IBAction func openDocument(_ sender: Any?) {
         let panel = NSOpenPanel()
-        panel.allowedFileTypes = ["tnt"]
+        panel.allowedFileTypes = ["tnt", "hpi", "ufo", "ccx", "gp3", "gpf"]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.message = "Pick a loose .tnt file to edit. (Maps inside .hpi / .ufo / .ccx archives must be exported first.)"
+        panel.message = "Pick a loose .tnt, or an archive (.hpi / .ufo / .ccx / .gp3 / .gpf) to browse the maps inside."
 
         panel.begin { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
-            self?.openMap(at: url)
+            self?.openFromFilePicker(url)
         }
+    }
+
+    private func openFromFilePicker(_ url: URL) {
+        let ext = url.pathExtension.lowercased()
+        if ext == "tnt" {
+            openMap(at: url)
+        } else {
+            openMapFromArchive(url)
+        }
+    }
+
+    private func openMapFromArchive(_ archiveURL: URL) {
+        let maps: [ArchiveMapPicker.MapEntry]
+        do {
+            maps = try ArchiveMapPicker.listMaps(in: archiveURL)
+        } catch {
+            presentError(error, contextMessage: "Couldn't read \(archiveURL.lastPathComponent)")
+            return
+        }
+
+        if maps.isEmpty {
+            presentError(ArchiveMapPicker.PickerError.noMapsInArchive(archiveURL),
+                         contextMessage: "No maps found")
+            return
+        }
+
+        guard let choice = ArchiveMapPicker.presentPicker(for: maps, archiveName: archiveURL.lastPathComponent) else {
+            return
+        }
+
+        let extractedURL: URL
+        do {
+            extractedURL = try ArchiveMapPicker.extract(choice, from: archiveURL)
+        } catch {
+            presentError(error, contextMessage: "Couldn't extract \(choice.name) from \(archiveURL.lastPathComponent)")
+            return
+        }
+
+        openMap(at: extractedURL)
     }
 
     func openMap(at url: URL) {
