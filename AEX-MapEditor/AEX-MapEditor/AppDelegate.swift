@@ -28,6 +28,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let mainMenu = NSMenu()
 
         // App menu (Apple-style per-app menu: About, Hide, Quit).
+        // macOS takes the first top-level item's title from the process
+        // name regardless of what we set, but every other top-level item
+        // inherits its label from NSMenuItem.title — so the File / Edit /
+        // Window items below each need their own explicit title.
         let appMenuItem = NSMenuItem()
         mainMenu.addItem(appMenuItem)
         let appMenu = NSMenu()
@@ -42,7 +46,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(withTitle: "Quit AEX Map Editor", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         // File menu.
-        let fileMenuItem = NSMenuItem()
+        let fileMenuItem = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
         mainMenu.addItem(fileMenuItem)
         let fileMenu = NSMenu(title: "File")
         fileMenuItem.submenu = fileMenu
@@ -59,7 +63,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         saveAs.keyEquivalentModifierMask = [.command, .shift]
 
         // Edit menu (undo + redo; rest can go on later).
-        let editMenuItem = NSMenuItem()
+        let editMenuItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
         mainMenu.addItem(editMenuItem)
         let editMenu = NSMenu(title: "Edit")
         editMenuItem.submenu = editMenu
@@ -68,7 +72,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         redoItem.keyEquivalentModifierMask = [.command, .shift]
 
         // Window menu.
-        let windowMenuItem = NSMenuItem()
+        let windowMenuItem = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")
         mainMenu.addItem(windowMenuItem)
         let windowMenu = NSMenu(title: "Window")
         windowMenuItem.submenu = windowMenu
