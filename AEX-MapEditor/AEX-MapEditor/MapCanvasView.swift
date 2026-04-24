@@ -36,6 +36,7 @@ protocol MapCanvasViewDelegate: AnyObject {
 enum MapCanvasTool {
     case heights
     case features
+    case tiles
 }
 
 
@@ -48,8 +49,16 @@ final class MapCanvasView: NSView {
     /// so setting a new map or committing a command both require
     /// `needsDisplay = true` to repaint.
     var map: EditableMap? {
-        didSet { needsDisplay = true }
+        didSet {
+            tileRasterCache = nil
+            needsDisplay = true
+        }
     }
+
+    /// Index into `map.model.tileSet` the user has selected as the
+    /// "paint" tile in Tiles mode. Defaulted to 0 when a map loads;
+    /// updated via `selectedTileIndex`.
+    var selectedTileIndex: Int = 0
 
     /// Brush configuration, surfaced to the window's tool palette.
     var brushRadius: Int = 3
@@ -66,6 +75,16 @@ final class MapCanvasView: NSView {
 
     private var activeStroke: HeightBrushStroke?
     private var hoverCell: (col: Int, row: Int)?
+    /// Cached tile raster so we only re-rasterize when tiles or the
+    /// loaded map actually change. Set to nil to force a rebuild.
+    private var tileRasterCache: CGImage?
+
+    /// Call when tile data changes (paint, undo, redo, save, etc.) so
+    /// the next draw rebuilds the cached raster.
+    func invalidateTileRaster() {
+        tileRasterCache = nil
+        needsDisplay = true
+    }
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -89,9 +108,28 @@ final class MapCanvasView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         guard let map = map, let ctx = NSGraphicsContext.current?.cgContext else { return }
-        drawHeightRaster(of: map, in: ctx)
+        switch activeTool {
+        case .tiles:
+            drawTileRaster(of: map, in: ctx)
+        default:
+            drawHeightRaster(of: map, in: ctx)
+        }
         drawFeatureOverlay(of: map, in: ctx)
         drawBrushOverlay(in: ctx)
+    }
+
+    private func drawTileRaster(of map: EditableMap, in ctx: CGContext) {
+        if tileRasterCache == nil {
+            tileRasterCache = MapRasterizer.render(map.model, using: map.palette)
+        }
+        guard let raster = tileRasterCache else { return }
+
+        ctx.interpolationQuality = .none
+        ctx.saveGState()
+        ctx.translateBy(x: 0, y: bounds.height)
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.draw(raster, in: CGRect(origin: .zero, size: bounds.size))
+        ctx.restoreGState()
     }
 
     private func drawFeatureOverlay(of map: EditableMap, in ctx: CGContext) {
@@ -190,7 +228,53 @@ final class MapCanvasView: NSView {
             applyStamp(at: event.locationInWindow)
         case .features:
             handleFeatureClick(at: event.locationInWindow, remove: false)
+        case .tiles:
+            handleTileClick(at: event.locationInWindow)
         }
+    }
+
+    private func handleTileClick(at windowPoint: CGPoint) {
+        guard let map = map else { return }
+        let point = convert(windowPoint, from: nil)
+        guard let tile = tileMapCellUnder(point) else { return }
+
+        let tileIndexCols = map.model.mapSize.width / 2
+        let linear = tile.row * tileIndexCols + tile.col
+        let indices = map.model.tileIndexMap.indices
+        guard (linear + 1) * MemoryLayout<UInt16>.size <= indices.count else { return }
+
+        let previous = indices.withUnsafeBytes { raw -> UInt16 in
+            raw.bindMemory(to: UInt16.self)[linear]
+        }
+        let next = UInt16(clamping: selectedTileIndex)
+        guard previous != next else { return }
+
+        let command = TilePaintCommand(
+            tileColumn: tile.col,
+            tileRow: tile.row,
+            tileIndexMapColumns: tileIndexCols,
+            previous: previous,
+            next: next
+        )
+        command.apply(to: map)
+        invalidateTileRaster()
+        delegate?.canvasDidFinishStroke(command)
+        delegate?.canvasDidModifyMap()
+    }
+
+    /// The tile-index grid is (mapSize.width / 2) × (mapSize.height / 2).
+    /// Screen-to-tile-cell is the same cellSize() math scaled down by 2.
+    private func tileMapCellUnder(_ point: CGPoint) -> (col: Int, row: Int)? {
+        guard let map = map else { return nil }
+        guard let cellSize = cellSize() else { return nil }
+        let tileWidth = cellSize.width * 2
+        let tileHeight = cellSize.height * 2
+        let col = Int(floor(point.x / tileWidth))
+        let row = Int(floor(point.y / tileHeight))
+        let tileCols = map.model.mapSize.width / 2
+        let tileRows = map.model.mapSize.height / 2
+        guard col >= 0, col < tileCols, row >= 0, row < tileRows else { return nil }
+        return (col, row)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -257,6 +341,10 @@ final class MapCanvasView: NSView {
             // Right-click erases the feature at the clicked cell,
             // regardless of the current picker selection.
             handleFeatureClick(at: event.locationInWindow, remove: true)
+        case .tiles:
+            // No "erase" for tiles — every cell must carry a valid tile
+            // index. Right-click is a no-op in this mode for now.
+            break
         }
     }
 

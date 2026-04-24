@@ -26,6 +26,11 @@ final class EditableMap {
     var ota: [String: TdfParser.Object]?
     var otaURL: URL?
 
+    /// Palette used to render tile graphics. For MVP we always use the
+    /// bundled PALETTE.PAL (the vanilla TA palette); when the editor
+    /// learns to load per-planet palettes they'll override this field.
+    var palette: Palette
+
     /// Becomes true the moment the first edit lands; back to false after a
     /// successful save. The UI mirrors this in the window title.
     private(set) var isModified: Bool = false
@@ -42,6 +47,8 @@ final class EditableMap {
         case .tak:
             throw EditableMapError.takNotYetSupported
         }
+
+        self.palette = EditableMap.loadBundledPalette()
 
         // Look for a same-basename .ota sibling. Lowercased extension check
         // so macOS case-preservation quirks don't skip matching sidecars.
@@ -74,6 +81,18 @@ final class EditableMap {
 
         self.fileURL = tntURL
         self.isModified = false
+    }
+
+    /// Loads the bundled TA palette. PALETTE.PAL is 1 KB of 256 RGBA
+    /// entries shipped as an app resource; if the file is missing (for
+    /// instance while iterating in a dev build that hasn't added it yet)
+    /// we return an all-white fallback so callers don't crash.
+    private static func loadBundledPalette() -> Palette {
+        guard let url = Bundle.main.url(forResource: "PALETTE", withExtension: "PAL"),
+              let palette = try? Palette(palContentsOf: url) else {
+            return Palette()
+        }
+        return palette
     }
 
     /// Write-with-backup: on first write to a location that already has a

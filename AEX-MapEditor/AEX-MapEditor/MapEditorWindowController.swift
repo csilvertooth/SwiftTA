@@ -24,8 +24,11 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
     private let modeSegmented: NSSegmentedControl
     private let featurePopup: NSPopUpButton
     private let addFeatureButton: NSButton
+    private let tilePopup: NSPopUpButton
+    private let tilePreview: NSImageView
     private let heightsGroup: NSStackView
     private let featuresGroup: NSStackView
+    private let tilesGroup: NSStackView
     private let mapInfoLabel: NSTextField
     private let undoManagerLocal = UndoManager()
 
@@ -54,7 +57,7 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
         mapInfoLabel.lineBreakMode = .byWordWrapping
         mapInfoLabel.maximumNumberOfLines = 3
 
-        let toolSegmented = NSSegmentedControl(labels: ["Heights", "Features"], trackingMode: .selectOne, target: nil, action: nil)
+        let toolSegmented = NSSegmentedControl(labels: ["Heights", "Features", "Tiles"], trackingMode: .selectOne, target: nil, action: nil)
         toolSegmented.selectedSegment = 0
         toolSegmented.controlSize = .regular
 
@@ -87,6 +90,17 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
         featureHint.font = NSFont.systemFont(ofSize: 10)
         featureHint.textColor = .secondaryLabelColor
 
+        let tilePopup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 200, height: 24), pullsDown: false)
+        MapEditorWindowController.populateTilePopup(tilePopup, map: map)
+
+        let tilePreview = NSImageView(frame: NSRect(x: 0, y: 0, width: 96, height: 96))
+        tilePreview.imageScaling = .scaleProportionallyUpOrDown
+        tilePreview.image = MapRasterizer.renderTile(index: 0, in: map.model, using: map.palette)
+
+        let tileHint = NSTextField(wrappingLabelWithString: "Pick a tile in the dropdown, then click on the map to paint that tile at the clicked 32×32 cell.")
+        tileHint.font = NSFont.systemFont(ofSize: 10)
+        tileHint.textColor = .secondaryLabelColor
+
         self.mapInfoLabel = mapInfoLabel
         self.toolSegmented = toolSegmented
         self.modeSegmented = modeSegmented
@@ -96,6 +110,8 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
         self.strengthLabel = strengthLabel
         self.featurePopup = featurePopup
         self.addFeatureButton = addFeatureButton
+        self.tilePopup = tilePopup
+        self.tilePreview = tilePreview
 
         let heightsGroup = NSStackView(views: [modeSegmented, radiusLabel, brushRadiusSlider, strengthLabel, brushStrengthSlider])
         heightsGroup.orientation = .vertical
@@ -108,8 +124,15 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
         featuresGroup.spacing = 8
         featuresGroup.isHidden = true
 
+        let tilesGroup = NSStackView(views: [tilePopup, tilePreview, tileHint])
+        tilesGroup.orientation = .vertical
+        tilesGroup.alignment = .leading
+        tilesGroup.spacing = 8
+        tilesGroup.isHidden = true
+
         self.heightsGroup = heightsGroup
         self.featuresGroup = featuresGroup
+        self.tilesGroup = tilesGroup
 
         canvas = MapCanvasView(frame: NSRect(x: paletteWidth, y: 0, width: windowFrame.width - paletteWidth, height: windowFrame.height))
         canvas.autoresizingMask = [.width, .height]
@@ -128,8 +151,10 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
         brushStrengthSlider.action = #selector(strengthChanged(_:))
         addFeatureButton.target = self
         addFeatureButton.action = #selector(addFeatureTypePrompt(_:))
+        tilePopup.target = self
+        tilePopup.action = #selector(tileSelectionChanged(_:))
 
-        let stack = NSStackView(views: [mapInfoLabel, toolSegmented, heightsGroup, featuresGroup])
+        let stack = NSStackView(views: [mapInfoLabel, toolSegmented, heightsGroup, featuresGroup, tilesGroup])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 12
@@ -147,6 +172,10 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
             heightsGroup.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24),
             featuresGroup.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24),
             featurePopup.widthAnchor.constraint(equalTo: featuresGroup.widthAnchor),
+            tilesGroup.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24),
+            tilePopup.widthAnchor.constraint(equalTo: tilesGroup.widthAnchor),
+            tilePreview.widthAnchor.constraint(equalToConstant: 96),
+            tilePreview.heightAnchor.constraint(equalToConstant: 96),
         ])
 
         let container = NSView(frame: windowFrame)
@@ -191,10 +220,41 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
     // MARK: - Tool palette actions
 
     @objc private func toolChanged(_ sender: NSSegmentedControl) {
-        let tool: MapCanvasTool = sender.selectedSegment == 0 ? .heights : .features
+        let tool: MapCanvasTool
+        switch sender.selectedSegment {
+        case 1: tool = .features
+        case 2: tool = .tiles
+        default: tool = .heights
+        }
         canvas.activeTool = tool
         heightsGroup.isHidden = tool != .heights
         featuresGroup.isHidden = tool != .features
+        tilesGroup.isHidden = tool != .tiles
+    }
+
+    @objc private func tileSelectionChanged(_ sender: NSPopUpButton) {
+        canvas.selectedTileIndex = sender.indexOfSelectedItem
+        tilePreview.image = MapRasterizer.renderTile(index: canvas.selectedTileIndex, in: map.model, using: map.palette)
+    }
+
+    /// Fills a popup with tile entries: "Tile N" titles, sorted numerically.
+    /// Keeping this in its own static so initializer code can call it
+    /// before `self` is fully constructed.
+    private static func populateTilePopup(_ popup: NSPopUpButton, map: EditableMap) {
+        popup.removeAllItems()
+        let count = map.model.tileSet.count
+        guard count > 0 else {
+            popup.addItem(withTitle: "(no tiles in map)")
+            popup.isEnabled = false
+            return
+        }
+        popup.isEnabled = true
+        for i in 0..<count {
+            popup.addItem(withTitle: "Tile \(i)")
+            if let image = MapRasterizer.renderTile(index: i, in: map.model, using: map.palette) {
+                popup.item(at: i)?.image = image
+            }
+        }
     }
 
     @objc private func modeChanged(_ sender: NSSegmentedControl) {
@@ -318,7 +378,7 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
     private func registerUndoForAlreadyAppliedCommand(_ command: MapCommand) {
         undoManagerLocal.registerUndo(withTarget: self) { target in
             command.revert(on: target.map)
-            target.canvas.needsDisplay = true
+            target.canvas.invalidateTileRaster()
             target.rebuildFeaturePopup()
             target.refreshTitle()
             target.registerRedo(command)
@@ -328,7 +388,7 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
     private func registerRedo(_ command: MapCommand) {
         undoManagerLocal.registerUndo(withTarget: self) { target in
             command.apply(to: target.map)
-            target.canvas.needsDisplay = true
+            target.canvas.invalidateTileRaster()
             target.rebuildFeaturePopup()
             target.refreshTitle()
             target.registerUndoForAlreadyAppliedCommand(command)
