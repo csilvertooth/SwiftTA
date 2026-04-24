@@ -18,6 +18,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowControllers: [MapEditorWindowController] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Without a MainMenu.xib, nothing in the launch path automatically
+        // promotes the process to a regular foreground app. Without that,
+        // the system keeps the menu bar of whichever app was active and
+        // AEX-MapEditor never gets one of its own.
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
         installMainMenu()
     }
 
@@ -51,11 +57,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let fileMenu = NSMenu(title: "File")
         fileMenuItem.submenu = fileMenu
         fileMenu.addItem(withTitle: "Open…", action: #selector(openDocument(_:)), keyEquivalent: "o")
-        let openRecent = fileMenu.addItem(withTitle: "Open Recent", action: nil, keyEquivalent: "")
-        let recentMenu = NSMenu(title: "Open Recent")
-        recentMenu.perform(Selector(("_setMenuName:")), with: "NSRecentDocumentsMenu")  // So AppKit populates it.
-        recentMenu.addItem(withTitle: "Clear Menu", action: #selector(NSDocumentController.clearRecentDocuments(_:)), keyEquivalent: "")
-        openRecent.submenu = recentMenu
         fileMenu.addItem(NSMenuItem.separator())
         fileMenu.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         fileMenu.addItem(withTitle: "Save", action: #selector(saveDocument(_:)), keyEquivalent: "s")
