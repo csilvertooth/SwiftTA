@@ -90,8 +90,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        return true
+        // Returning true unconditionally makes the app quit the moment
+        // any window closes — including the File → Open panel when the
+        // user cancels it, which leaves nothing else on screen. Only
+        // terminate once a map window has actually been opened and all
+        // map windows are now closed. A freshly-launched app with no map
+        // opened yet (or one whose user cancelled the open panel) stays
+        // running and reachable from the menu bar / Dock.
+        return everOpenedAMap && windowControllers.isEmpty
     }
+
+    /// Flipped to true the first time `openMap(at:)` successfully shows a
+    /// window. Never flips back, so the last-map-closed shutdown rule
+    /// kicks in from then on.
+    private var everOpenedAMap = false
 
     @IBAction func openDocument(_ sender: Any?) {
         let panel = NSOpenPanel()
@@ -111,6 +123,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let controller = try MapEditorWindowController(mapURL: url)
             windowControllers.append(controller)
             controller.showWindow(nil)
+            everOpenedAMap = true
             NSDocumentController.shared.noteNewRecentDocumentURL(url)
 
             // Drop the controller from our retain set when its window closes
