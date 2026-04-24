@@ -1,15 +1,13 @@
+//
+//  Placeholder test file — the actual suites live in
+//  TaMapModelWriterTests.swift (and siblings as they're added). This
+//  empty case is kept so the test target has a stable source-file
+//  list that was carried over from the Swift package template.
+//
+
 import XCTest
 @testable import SwiftTA_Core
 
 final class SwiftTA_CoreTests: XCTestCase {
-    func testExample() {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct
-        // results.
-        XCTAssertEqual(SwiftTA_Core().text, "Hello, World!")
-    }
-
-    static var allTests = [
-        ("testExample", testExample),
-    ]
+    // Intentionally empty.
 }

@@ -87,6 +87,14 @@ jobs:
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "Imported signing identity: $IDENTITY (team $TEAM_ID)"
 
+      - name: Test SwiftTA-Core
+        # Run the Swift Package tests before the Xcode builds so writer /
+        # round-trip regressions surface immediately instead of being
+        # masked by a downstream build that happens to still compile.
+        run: |
+          cd SwiftTA-Core
+          swift test
+
       - name: Resolve Swift packages
         run: |
           xcodebuild -workspace SwiftTA.xcworkspace \
