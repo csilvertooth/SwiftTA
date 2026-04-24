@@ -4,6 +4,8 @@ This repository is a fork of [loganjones/SwiftTA](https://github.com/loganjones/
 
 The original upstream README (Swift 4.2 / Ubuntu 16.04 era game-client instructions) is preserved at [ORIGINAL_README.md](ORIGINAL_README.md).
 
+**Removed from this fork:** the `SwiftTA macOS`, `SwiftTA iOS`, and `SwiftTA Linux` game-client source trees. CI never built them, and maintaining them was never the intent of this fork; they survive in the upstream [loganjones/SwiftTA](https://github.com/loganjones/SwiftTA) for anyone who wants them. The Swift packages they once depended on (`SwiftTA-Core`, `SwiftTA-Ctypes`, `SwiftTA-Metal`, `SwiftTA-OpenGL3`) remain because TAassets and HPIView still use them.
+
 ## Highlights added in this fork
 
 - **Builds cleanly on Xcode 26 / macOS 26 / Apple silicon** — Swift disambiguation fixes, deployment-target bump, Metal toolchain check, palette off-by-one fix.

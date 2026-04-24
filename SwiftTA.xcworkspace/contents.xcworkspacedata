@@ -14,12 +14,6 @@
       location = "group:SwiftTA-OpenGL3">
    </FileRef>
    <FileRef
-      location = "group:SwiftTA macOS/SwiftTA macOS.xcodeproj">
-   </FileRef>
-   <FileRef
-      location = "group:SwiftTA iOS/SwiftTA iOS.xcodeproj">
-   </FileRef>
-   <FileRef
       location = "group:TAassets/TAassets.xcodeproj">
    </FileRef>
    <FileRef

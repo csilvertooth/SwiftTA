@@ -1,12 +1,14 @@
 # SwiftTA (original README)
 
-> This file preserves the README from the upstream [loganjones/SwiftTA](https://github.com/loganjones/SwiftTA) project. It documents the original game-client experiment (macOS / iOS / Linux) and its Swift 4.2 / Ubuntu 16.04 era build steps. The top-level [README.md](../README.md) covers the asset-inspector tooling that this fork focuses on; the more recent fork-specific notes are in [FORK_NOTES.md](FORK_NOTES.md).
+> This file preserves the README from the upstream [loganjones/SwiftTA](https://github.com/loganjones/SwiftTA) project. It documents the original game-client experiment (macOS / iOS / Linux) and its Swift 4.2 / Ubuntu 16.04 era build steps. **The `SwiftTA macOS`, `SwiftTA iOS`, and `SwiftTA Linux` game-client source trees referenced below have been removed from this fork** — they weren't built by CI or maintained here. Anyone wanting the original game client can clone [loganjones/SwiftTA](https://github.com/loganjones/SwiftTA) directly; this fork focuses on the asset-inspector tooling.
+>
+> The top-level [README.md](../README.md) covers the asset inspectors; the more recent fork-specific notes are in [FORK_NOTES.md](FORK_NOTES.md).
 
 I like [Swift](https://swift.org); but I'd like to get to know it better outside of my day job: writing iOS apps and libraries. So I've decided to retrace the steps of an old project I worked on ages ago: [writing a clone of Total Annihilation](https://github.com/loganjones/nTA-Total-Annihilation-Clone).
 
 Currently, there is a simple game client (macOS, iOS, Linux) that loads up a hardcoded map and displays a single unit. See the [Build](#build) section for information on building and running the client.
 
-![Screenshot](../SwiftTA.jpg "SwiftTA Screenshot")
+![Screenshot](images/SwiftTA.jpg "SwiftTA Screenshot")
 
 Additionally, there are a couple of macOS applications, [TAassets](#taassets) and [HPIView](#hpiview), that browse TA archive files (HPI & UFO files) and shows a preview of its contents.
 
@@ -45,7 +47,7 @@ Note: You will need an OpenGL 3.0 capable graphics driver to run the game. For d
 
 ## TAassets
 
-![Screenshot](../TAassets.gif "TAassets Screenshot")
+![Screenshot](images/TAassets.gif "TAassets Screenshot")
 
 A macOS application that browses all of the assets contained in the TA archive files (HPI & UFO files) of a TA install directory. With this you can see the "virtual" file-sytem hierarchy that TA uses to load its assets. Additionally, you can browse specific categories (like units) to see a more complete representation (model + textures + animations).
 
@@ -53,7 +55,7 @@ You will need a Mac (natch) and a Total Annihilation installation somewhere on y
 
 ## HPIView
 
-![Screenshot](../HpiView.jpg "HpiView Screenshot")
+![Screenshot](images/HpiView.jpg "HpiView Screenshot")
 
 A macOS application that browses the TA archive files (HPI & UFO files) and shows a preview of its contents. This is similar to an old Windows program (which I believe had the same name).
 

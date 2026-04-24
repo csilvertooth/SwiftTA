@@ -1,4 +1,0 @@
-module Ctypes [system] {
-  header "shim.h"
-  export *
-}
