@@ -1,0 +1,321 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 52;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AE0000010000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000020000000000000001 /* AppDelegate.swift */; };
+		AE0000030000000000000001 /* EditableMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000040000000000000001 /* EditableMap.swift */; };
+		AE0000050000000000000001 /* HeightBrushCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000060000000000000001 /* HeightBrushCommand.swift */; };
+		AE0000070000000000000001 /* MapCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000080000000000000001 /* MapCanvasView.swift */; };
+		AE0000090000000000000001 /* MapEditorWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000A0000000000000001 /* MapEditorWindowController.swift */; };
+		AE00000B0000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AE00000C0000000000000001 /* Assets.xcassets */; };
+		AE00000F0000000000000001 /* SwiftTA-Core in Frameworks */ = {isa = PBXBuildFile; productRef = AE0000100000000000000001 /* SwiftTA-Core */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		AE0000020000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		AE0000040000000000000001 /* EditableMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditableMap.swift; sourceTree = "<group>"; };
+		AE0000060000000000000001 /* HeightBrushCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeightBrushCommand.swift; sourceTree = "<group>"; };
+		AE0000080000000000000001 /* MapCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapCanvasView.swift; sourceTree = "<group>"; };
+		AE00000A0000000000000001 /* MapEditorWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapEditorWindowController.swift; sourceTree = "<group>"; };
+		AE00000C0000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AE0000110000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AE0000120000000000000001 /* AEX-MapEditor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AEX-MapEditor.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AE0000130000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AE00000F0000000000000001 /* SwiftTA-Core in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AE0000140000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				AE0000150000000000000001 /* AEX-MapEditor */,
+				AE0000160000000000000001 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AE0000150000000000000001 /* AEX-MapEditor */ = {
+			isa = PBXGroup;
+			children = (
+				AE0000020000000000000001 /* AppDelegate.swift */,
+				AE0000040000000000000001 /* EditableMap.swift */,
+				AE0000060000000000000001 /* HeightBrushCommand.swift */,
+				AE0000080000000000000001 /* MapCanvasView.swift */,
+				AE00000A0000000000000001 /* MapEditorWindowController.swift */,
+				AE00000C0000000000000001 /* Assets.xcassets */,
+				AE0000110000000000000001 /* Info.plist */,
+			);
+			path = "AEX-MapEditor";
+			sourceTree = "<group>";
+		};
+		AE0000160000000000000001 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AE0000120000000000000001 /* AEX-MapEditor.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AE0000180000000000000001 /* AEX-MapEditor */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AE0000190000000000000001 /* Build configuration list for PBXNativeTarget "AEX-MapEditor" */;
+			buildPhases = (
+				AE00001A0000000000000001 /* Sources */,
+				AE0000130000000000000001 /* Frameworks */,
+				AE00001B0000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "AEX-MapEditor";
+			packageProductDependencies = (
+				AE0000100000000000000001 /* SwiftTA-Core */,
+			);
+			productName = "AEX-MapEditor";
+			productReference = AE0000120000000000000001 /* AEX-MapEditor.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AE00001C0000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 1520;
+				LastUpgradeCheck = 1520;
+				ORGANIZATIONNAME = "Azimuth Systems";
+				TargetAttributes = {
+					AE0000180000000000000001 = {
+						CreatedOnToolsVersion = 15.0;
+						LastSwiftMigration = 1520;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = AE00001D0000000000000001 /* Build configuration list for PBXProject "AEX-MapEditor" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = AE0000140000000000000001;
+			productRefGroup = AE0000160000000000000001 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AE0000180000000000000001 /* AEX-MapEditor */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AE00001B0000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AE00000B0000000000000001 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AE00001A0000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AE0000010000000000000001 /* AppDelegate.swift in Sources */,
+				AE0000030000000000000001 /* EditableMap.swift in Sources */,
+				AE0000050000000000000001 /* HeightBrushCommand.swift in Sources */,
+				AE0000070000000000000001 /* MapCanvasView.swift in Sources */,
+				AE0000090000000000000001 /* MapEditorWindowController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		AE00001E0000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		AE00001F0000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		AE0000200000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = "AEX-MapEditor/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "net.azimuthsystems.AEX-MapEditor";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		AE0000210000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = "AEX-MapEditor/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "net.azimuthsystems.AEX-MapEditor";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AE00001D0000000000000001 /* Build configuration list for PBXProject "AEX-MapEditor" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AE00001E0000000000000001 /* Debug */,
+				AE00001F0000000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AE0000190000000000000001 /* Build configuration list for PBXNativeTarget "AEX-MapEditor" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AE0000200000000000000001 /* Debug */,
+				AE0000210000000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AE0000100000000000000001 /* SwiftTA-Core */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = "SwiftTA-Core";
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = AE00001C0000000000000001 /* Project object */;
+}

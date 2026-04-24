@@ -4,6 +4,7 @@ Two macOS apps for exploring Total Annihilation's game data. Point them at a fol
 
 - **TAassets** — unified asset browser with live 3D model previews, COB script playback, a piece hierarchy inspector, map height / passability overlays, and mod support.
 - **HPIView** — a tree explorer for individual `.hpi` / `.ufo` / `.ccx` / `.gp3` / `.gpf` archives with per-file preview and bulk extraction.
+- **AEX-MapEditor** *(early access)* — a bare-bones heightmap editor for loose `.tnt` files. Current build supports height raise/lower brushing with undo/redo and saves back to the original format. Tile painting, feature placement, and OTA metadata editing are on the roadmap.
 
 Both apps run natively on Apple silicon (and Intel Macs) on macOS 10.13+, read every TA-family archive format, handle TAESC-style mods, and do not require a copy of Xcode to use.
 
@@ -13,6 +14,7 @@ Grab the latest build from the [Releases page](https://github.com/csilvertooth/S
 
 - **`TAassets-macOS.zip`** — the full asset browser
 - **`HPIView-macOS.zip`** — archive viewer only
+- **`AEX-MapEditor-macOS.zip`** — early-access heightmap editor
 
 The `Latest main` prerelease is refreshed on every push to `main`. Versioned releases (e.g. `v0.1.0`) are posted when they're cut.
 

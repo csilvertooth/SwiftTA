@@ -159,6 +159,35 @@ jobs:
               build
           fi
 
+      - name: Build AEX-MapEditor (Release)
+        run: |
+          if [ "$HAVE_SIGNING" = "true" ]; then
+            xcodebuild \
+              -workspace SwiftTA.xcworkspace \
+              -scheme AEX-MapEditor \
+              -destination 'platform=macOS' \
+              -configuration Release \
+              -derivedDataPath build/DerivedData \
+              CODE_SIGN_STYLE=Manual \
+              CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
+              DEVELOPMENT_TEAM="$SIGN_TEAM_ID" \
+              CODE_SIGN_ENTITLEMENTS="$GITHUB_WORKSPACE/ci/release.entitlements" \
+              ENABLE_HARDENED_RUNTIME=YES \
+              OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
+              build
+          else
+            xcodebuild \
+              -workspace SwiftTA.xcworkspace \
+              -scheme AEX-MapEditor \
+              -destination 'platform=macOS' \
+              -configuration Release \
+              -derivedDataPath build/DerivedData \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO \
+              build
+          fi
+
       - name: Notarize and staple
         if: env.HAVE_SIGNING == 'true' && env.HAVE_NOTARY == 'true'
         env:
@@ -169,7 +198,7 @@ jobs:
           set -euo pipefail
           PRODUCTS=build/DerivedData/Build/Products/Release
 
-          for APP in TAassets HPIView; do
+          for APP in TAassets HPIView AEX-MapEditor; do
             APP_PATH="$PRODUCTS/$APP.app"
             ZIP_FOR_NOTARY="$RUNNER_TEMP/$APP-notary.zip"
 
@@ -219,6 +248,7 @@ jobs:
           # bundle better than zip -r and matches what notarization expects.
           ditto -c -k --sequesterRsrc --keepParent "$PRODUCTS/TAassets.app" dist/TAassets-macOS.zip
           ditto -c -k --sequesterRsrc --keepParent "$PRODUCTS/HPIView.app" dist/HPIView-macOS.zip
+          ditto -c -k --sequesterRsrc --keepParent "$PRODUCTS/AEX-MapEditor.app" dist/AEX-MapEditor-macOS.zip
           ls -lh dist
 
       - name: Upload build artifacts
@@ -252,6 +282,7 @@ jobs:
           gh release create latest \
             dist/TAassets-macOS.zip \
             dist/HPIView-macOS.zip \
+            dist/AEX-MapEditor-macOS.zip \
             --target "${{ github.sha }}" \
             --title "Latest main ($SHORT)" \
             --notes "$(printf '%b' "$NOTES")" \
@@ -267,6 +298,7 @@ jobs:
           gh release create "$TAG" \
             dist/TAassets-macOS.zip \
             dist/HPIView-macOS.zip \
+            dist/AEX-MapEditor-macOS.zip \
             --title "$TAG" \
             --generate-notes
 

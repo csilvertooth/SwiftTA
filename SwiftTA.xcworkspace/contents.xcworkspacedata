@@ -19,4 +19,7 @@
    <FileRef
       location = "group:HPIView/HPIView.xcodeproj">
    </FileRef>
+   <FileRef
+      location = "group:AEX-MapEditor/AEX-MapEditor.xcodeproj">
+   </FileRef>
 </Workspace>
