@@ -12,19 +12,22 @@ import Cocoa
 import SwiftTA_Core
 
 
-@main
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var windowControllers: [MapEditorWindowController] = []
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        // Without a MainMenu.xib, nothing in the launch path automatically
-        // promotes the process to a regular foreground app. Without that,
-        // the system keeps the menu bar of whichever app was active and
-        // AEX-MapEditor never gets one of its own.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // applicationWillFinishLaunching is the canonical spot to install a
+        // programmatic menu bar — AppKit reads NSApp.mainMenu once during
+        // the rest of startup, so setting it here is guaranteed to be
+        // picked up before the menu bar renders.
         NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
         installMainMenu()
+        NSLog("AEX-MapEditor: installed mainMenu with \(NSApp.mainMenu?.items.count ?? 0) top-level items")
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     /// Installs a minimal menu bar programmatically rather than via a
