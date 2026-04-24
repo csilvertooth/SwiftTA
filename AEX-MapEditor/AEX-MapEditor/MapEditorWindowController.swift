@@ -16,11 +16,16 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
 
     private let map: EditableMap
     private let canvas: MapCanvasView
+    private let toolSegmented: NSSegmentedControl
     private let brushRadiusSlider: NSSlider
     private let brushStrengthSlider: NSSlider
     private let radiusLabel: NSTextField
     private let strengthLabel: NSTextField
     private let modeSegmented: NSSegmentedControl
+    private let featurePopup: NSPopUpButton
+    private let addFeatureButton: NSButton
+    private let heightsGroup: NSStackView
+    private let featuresGroup: NSStackView
     private let mapInfoLabel: NSTextField
     private let undoManagerLocal = UndoManager()
 
@@ -49,6 +54,10 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
         mapInfoLabel.lineBreakMode = .byWordWrapping
         mapInfoLabel.maximumNumberOfLines = 3
 
+        let toolSegmented = NSSegmentedControl(labels: ["Heights", "Features"], trackingMode: .selectOne, target: nil, action: nil)
+        toolSegmented.selectedSegment = 0
+        toolSegmented.controlSize = .regular
+
         let modeSegmented = NSSegmentedControl(labels: ["Raise", "Lower"], trackingMode: .selectOne, target: nil, action: nil)
         modeSegmented.selectedSegment = 0
         modeSegmented.controlSize = .regular
@@ -61,12 +70,46 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
         let brushStrengthSlider = NSSlider(value: 16, minValue: 1, maxValue: 127, target: nil, action: nil)
         brushStrengthSlider.isContinuous = true
 
+        let featurePopup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 200, height: 24), pullsDown: false)
+        for featureId in map.model.features {
+            featurePopup.addItem(withTitle: featureId.name)
+        }
+        if map.model.features.isEmpty {
+            featurePopup.addItem(withTitle: "(no features in map)")
+            featurePopup.isEnabled = false
+        }
+
+        let addFeatureButton = NSButton(title: "Add feature type…", target: nil, action: nil)
+        addFeatureButton.bezelStyle = .rounded
+        addFeatureButton.controlSize = .regular
+
+        let featureHint = NSTextField(wrappingLabelWithString: "Left-click a cell to place the selected feature. Right-click to remove any feature at the clicked cell.")
+        featureHint.font = NSFont.systemFont(ofSize: 10)
+        featureHint.textColor = .secondaryLabelColor
+
         self.mapInfoLabel = mapInfoLabel
+        self.toolSegmented = toolSegmented
         self.modeSegmented = modeSegmented
         self.brushRadiusSlider = brushRadiusSlider
         self.brushStrengthSlider = brushStrengthSlider
         self.radiusLabel = radiusLabel
         self.strengthLabel = strengthLabel
+        self.featurePopup = featurePopup
+        self.addFeatureButton = addFeatureButton
+
+        let heightsGroup = NSStackView(views: [modeSegmented, radiusLabel, brushRadiusSlider, strengthLabel, brushStrengthSlider])
+        heightsGroup.orientation = .vertical
+        heightsGroup.alignment = .leading
+        heightsGroup.spacing = 8
+
+        let featuresGroup = NSStackView(views: [featurePopup, addFeatureButton, featureHint])
+        featuresGroup.orientation = .vertical
+        featuresGroup.alignment = .leading
+        featuresGroup.spacing = 8
+        featuresGroup.isHidden = true
+
+        self.heightsGroup = heightsGroup
+        self.featuresGroup = featuresGroup
 
         canvas = MapCanvasView(frame: NSRect(x: paletteWidth, y: 0, width: windowFrame.width - paletteWidth, height: windowFrame.height))
         canvas.autoresizingMask = [.width, .height]
@@ -75,17 +118,21 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
         super.init(window: window)
 
         // Lay out the palette contents now that self exists and can target actions.
+        toolSegmented.target = self
+        toolSegmented.action = #selector(toolChanged(_:))
         modeSegmented.target = self
         modeSegmented.action = #selector(modeChanged(_:))
         brushRadiusSlider.target = self
         brushRadiusSlider.action = #selector(radiusChanged(_:))
         brushStrengthSlider.target = self
         brushStrengthSlider.action = #selector(strengthChanged(_:))
+        addFeatureButton.target = self
+        addFeatureButton.action = #selector(addFeatureTypePrompt(_:))
 
-        let stack = NSStackView(views: [mapInfoLabel, modeSegmented, radiusLabel, brushRadiusSlider, strengthLabel, brushStrengthSlider])
+        let stack = NSStackView(views: [mapInfoLabel, toolSegmented, heightsGroup, featuresGroup])
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 10
+        stack.spacing = 12
         stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
         stack.translatesAutoresizingMaskIntoConstraints = false
         palette.addSubview(stack)
@@ -94,8 +141,12 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
             stack.topAnchor.constraint(equalTo: palette.topAnchor),
             stack.leadingAnchor.constraint(equalTo: palette.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: palette.trailingAnchor),
-            brushRadiusSlider.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24),
-            brushStrengthSlider.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24),
+            toolSegmented.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24),
+            brushRadiusSlider.widthAnchor.constraint(equalTo: heightsGroup.widthAnchor),
+            brushStrengthSlider.widthAnchor.constraint(equalTo: heightsGroup.widthAnchor),
+            heightsGroup.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24),
+            featuresGroup.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24),
+            featurePopup.widthAnchor.constraint(equalTo: featuresGroup.widthAnchor),
         ])
 
         let container = NSView(frame: windowFrame)
@@ -139,8 +190,43 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
 
     // MARK: - Tool palette actions
 
+    @objc private func toolChanged(_ sender: NSSegmentedControl) {
+        let tool: MapCanvasTool = sender.selectedSegment == 0 ? .heights : .features
+        canvas.activeTool = tool
+        heightsGroup.isHidden = tool != .heights
+        featuresGroup.isHidden = tool != .features
+    }
+
     @objc private func modeChanged(_ sender: NSSegmentedControl) {
         canvas.eraseMode = sender.selectedSegment == 1
+    }
+
+    @objc private func addFeatureTypePrompt(_ sender: Any?) {
+        let alert = NSAlert()
+        alert.messageText = "Add a feature type"
+        alert.informativeText = "Enter the exact feature name (from FBI / features TDF) to add to this map's feature table."
+
+        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        textField.placeholderString = "e.g. Tree01, MetalPatch, SmallRock01"
+        alert.accessoryView = textField
+
+        alert.addButton(withTitle: "Add")
+        alert.addButton(withTitle: "Cancel")
+
+        // Focus the text field so the user can start typing immediately.
+        DispatchQueue.main.async { textField.window?.makeFirstResponder(textField) }
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let trimmed = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        // Run the append command through the undo stack so this is
+        // reversible. We also record the command so future assigns to the
+        // new index come AFTER this append in the history.
+        let command = FeatureTypeAppendCommand(featureName: trimmed)
+        registerNewUndoableCommand(command)
+
+        rebuildFeaturePopup(selecting: map.model.features.count - 1)
     }
 
     @objc private func radiusChanged(_ sender: NSSlider) {
@@ -197,33 +283,77 @@ final class MapEditorWindowController: NSWindowController, MapCanvasViewDelegate
     // MARK: - MapCanvasViewDelegate
 
     func canvasDidFinishStroke(_ command: MapCommand) {
-        undoManagerLocal.registerUndo(withTarget: self) { target in
-            command.revert(on: target.map)
-            target.canvas.needsDisplay = true
-            target.refreshTitle()
-            target.undoManagerLocal.registerUndo(withTarget: target) { redoTarget in
-                command.apply(to: redoTarget.map)
-                redoTarget.canvas.needsDisplay = true
-                redoTarget.refreshTitle()
-                redoTarget.registerRedo(command)
-            }
-        }
+        // The canvas already applied the command when the stroke ended;
+        // we only need to record undo here. registerNewUndoableCommand
+        // handles the cycle for both new actions and clicks from feature
+        // tool.
+        registerUndoForAlreadyAppliedCommand(command)
         refreshTitle()
-    }
-
-    private func registerRedo(_ command: MapCommand) {
-        undoManagerLocal.registerUndo(withTarget: self) { target in
-            command.revert(on: target.map)
-            target.canvas.needsDisplay = true
-            target.refreshTitle()
-        }
+        rebuildFeaturePopup()
     }
 
     func canvasDidModifyMap() {
         refreshTitle()
     }
 
+    func canvasWantsFeatureAssignment(forCell index: Int) -> Int?? {
+        // The popup holds an entry per features[] slot; selecting index N
+        // means "place features[N]". If the user hasn't added any feature
+        // types yet, there's nothing to place and the click is a no-op.
+        guard !map.model.features.isEmpty, featurePopup.isEnabled else { return nil }
+        let selected = featurePopup.indexOfSelectedItem
+        guard selected >= 0, selected < map.model.features.count else { return nil }
+        return .some(selected)
+    }
+
+    /// Runs `command.apply(on:)` AND registers the undo for it. Used by
+    /// the Add Feature Type path which isn't called from a stroke end.
+    private func registerNewUndoableCommand(_ command: MapCommand) {
+        command.apply(to: map)
+        registerUndoForAlreadyAppliedCommand(command)
+        canvas.needsDisplay = true
+        refreshTitle()
+    }
+
+    private func registerUndoForAlreadyAppliedCommand(_ command: MapCommand) {
+        undoManagerLocal.registerUndo(withTarget: self) { target in
+            command.revert(on: target.map)
+            target.canvas.needsDisplay = true
+            target.rebuildFeaturePopup()
+            target.refreshTitle()
+            target.registerRedo(command)
+        }
+    }
+
+    private func registerRedo(_ command: MapCommand) {
+        undoManagerLocal.registerUndo(withTarget: self) { target in
+            command.apply(to: target.map)
+            target.canvas.needsDisplay = true
+            target.rebuildFeaturePopup()
+            target.refreshTitle()
+            target.registerUndoForAlreadyAppliedCommand(command)
+        }
+    }
+
     // MARK: - UI plumbing
+
+    private func rebuildFeaturePopup(selecting index: Int? = nil) {
+        let previousIndex = featurePopup.indexOfSelectedItem
+        featurePopup.removeAllItems()
+        for featureId in map.model.features {
+            featurePopup.addItem(withTitle: featureId.name)
+        }
+        if map.model.features.isEmpty {
+            featurePopup.addItem(withTitle: "(no features in map)")
+            featurePopup.isEnabled = false
+        } else {
+            featurePopup.isEnabled = true
+            let target = index ?? previousIndex
+            if target >= 0 && target < map.model.features.count {
+                featurePopup.selectItem(at: target)
+            }
+        }
+    }
 
     private func updateMapInfoLabel() {
         let size = map.model.mapSize

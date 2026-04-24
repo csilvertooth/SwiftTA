@@ -23,6 +23,19 @@ protocol MapCanvasViewDelegate: AnyObject {
     /// Called every frame the stroke mutates the model, so the window
     /// controller can refresh its title bar / dirty marker.
     func canvasDidModifyMap()
+    /// When the Features tool is active and the user clicks a cell,
+    /// the delegate decides which feature index (if any) should be
+    /// assigned — typically reads the current picker selection. A
+    /// return of nil means "no change" (e.g. user hasn't picked a
+    /// feature yet, or we're in erase mode); a non-nil .some(nil)
+    /// means "remove any feature here".
+    func canvasWantsFeatureAssignment(forCell index: Int) -> Int??
+}
+
+
+enum MapCanvasTool {
+    case heights
+    case features
 }
 
 
@@ -41,8 +54,13 @@ final class MapCanvasView: NSView {
     /// Brush configuration, surfaced to the window's tool palette.
     var brushRadius: Int = 3
     var brushStrength: Int = 16
-    /// When true, the next stroke lowers heights instead of raising.
+    /// When true, the next height stroke lowers instead of raising.
     var eraseMode: Bool = false
+
+    /// Which tool's interactions take effect on mouse events.
+    var activeTool: MapCanvasTool = .heights {
+        didSet { needsDisplay = true }
+    }
 
     // MARK: - Internal state
 
@@ -72,7 +90,33 @@ final class MapCanvasView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         guard let map = map, let ctx = NSGraphicsContext.current?.cgContext else { return }
         drawHeightRaster(of: map, in: ctx)
+        drawFeatureOverlay(of: map, in: ctx)
         drawBrushOverlay(in: ctx)
+    }
+
+    private func drawFeatureOverlay(of map: EditableMap, in ctx: CGContext) {
+        guard let cellSize = cellSize() else { return }
+        let mapSize = map.model.mapSize
+        let featureMap = map.model.featureMap
+        guard featureMap.count == mapSize.area else { return }
+
+        // Solid fill so the feature squares pop against the grayscale
+        // heightmap regardless of elevation. Alpha keeps the underlying
+        // height visible so users can still judge steepness through the
+        // overlay.
+        ctx.setFillColor(NSColor(calibratedRed: 1.0, green: 0.6, blue: 0.1, alpha: 0.55).cgColor)
+        for i in 0..<featureMap.count {
+            guard featureMap[i] != nil else { continue }
+            let col = i % mapSize.width
+            let row = i / mapSize.width
+            let rect = CGRect(
+                x: CGFloat(col) * cellSize.width,
+                y: CGFloat(row) * cellSize.height,
+                width: cellSize.width,
+                height: cellSize.height
+            )
+            ctx.fill(rect)
+        }
     }
 
     private func drawHeightRaster(of map: EditableMap, in ctx: CGContext) {
@@ -139,21 +183,57 @@ final class MapCanvasView: NSView {
     // MARK: - Mouse interaction
 
     override func mouseDown(with event: NSEvent) {
-        let delta = eraseMode ? -brushStrength : brushStrength
-        activeStroke = HeightBrushStroke(config: .init(radius: brushRadius, delta: delta))
-        applyStamp(at: event.locationInWindow)
+        switch activeTool {
+        case .heights:
+            let delta = eraseMode ? -brushStrength : brushStrength
+            activeStroke = HeightBrushStroke(config: .init(radius: brushRadius, delta: delta))
+            applyStamp(at: event.locationInWindow)
+        case .features:
+            handleFeatureClick(at: event.locationInWindow, remove: false)
+        }
     }
 
     override func mouseDragged(with event: NSEvent) {
+        guard activeTool == .heights else { return }
         applyStamp(at: event.locationInWindow)
     }
 
     override func mouseUp(with event: NSEvent) {
+        guard activeTool == .heights else { return }
         applyStamp(at: event.locationInWindow)
         if let command = activeStroke?.finish() {
             delegate?.canvasDidFinishStroke(command)
         }
         activeStroke = nil
+    }
+
+    private func handleFeatureClick(at windowPoint: CGPoint, remove: Bool) {
+        guard let map = map else { return }
+        let point = convert(windowPoint, from: nil)
+        guard let cell = cellUnder(point) else { return }
+        let cellIndex = cell.row * map.model.mapSize.width + cell.col
+
+        if remove {
+            let previous = map.model.featureMap[cellIndex]
+            guard previous != nil else { return }
+            let command = FeatureAssignCommand(cellIndex: cellIndex, previous: previous, next: nil)
+            command.apply(to: map)
+            delegate?.canvasDidFinishStroke(command)
+            delegate?.canvasDidModifyMap()
+            needsDisplay = true
+            return
+        }
+
+        // Placement: ask the delegate what to assign. A return of .some(nil)
+        // means "erase"; .some(.some(idx)) means assign that index; nil means
+        // do nothing (e.g. no feature selected yet).
+        guard let decision = delegate?.canvasWantsFeatureAssignment(forCell: cellIndex) else { return }
+        let previous = map.model.featureMap[cellIndex]
+        let command = FeatureAssignCommand(cellIndex: cellIndex, previous: previous, next: decision)
+        command.apply(to: map)
+        delegate?.canvasDidFinishStroke(command)
+        delegate?.canvasDidModifyMap()
+        needsDisplay = true
     }
 
     override func mouseMoved(with event: NSEvent) {
@@ -168,11 +248,16 @@ final class MapCanvasView: NSView {
     }
 
     override func rightMouseDown(with event: NSEvent) {
-        // Right-click toggles erase mode for the next stroke — same ergonomics
-        // as most painting apps' "alt to erase" gesture. Shift could go here
-        // later; keeping it basic for MVP.
-        eraseMode.toggle()
-        needsDisplay = true
+        switch activeTool {
+        case .heights:
+            // Right-click toggles erase mode for the next height stroke.
+            eraseMode.toggle()
+            needsDisplay = true
+        case .features:
+            // Right-click erases the feature at the clicked cell,
+            // regardless of the current picker selection.
+            handleFeatureClick(at: event.locationInWindow, remove: true)
+        }
     }
 
     private func applyStamp(at windowPoint: CGPoint) {

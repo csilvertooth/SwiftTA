@@ -14,6 +14,7 @@
 		AE0000090000000000000001 /* MapEditorWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000A0000000000000001 /* MapEditorWindowController.swift */; };
 		AE0000220000000000000001 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000230000000000000001 /* main.swift */; };
 		AE0000240000000000000001 /* ArchiveMapPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000250000000000000001 /* ArchiveMapPicker.swift */; };
+		AE0000260000000000000001 /* FeatureCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000270000000000000001 /* FeatureCommand.swift */; };
 		AE00000B0000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AE00000C0000000000000001 /* Assets.xcassets */; };
 		AE00000F0000000000000001 /* SwiftTA-Core in Frameworks */ = {isa = PBXBuildFile; productRef = AE0000100000000000000001 /* SwiftTA-Core */; };
 /* End PBXBuildFile section */
@@ -26,6 +27,7 @@
 		AE00000A0000000000000001 /* MapEditorWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapEditorWindowController.swift; sourceTree = "<group>"; };
 		AE0000230000000000000001 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		AE0000250000000000000001 /* ArchiveMapPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveMapPicker.swift; sourceTree = "<group>"; };
+		AE0000270000000000000001 /* FeatureCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureCommand.swift; sourceTree = "<group>"; };
 		AE00000C0000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AE0000110000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AE0000120000000000000001 /* AEX-MapEditor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AEX-MapEditor.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -58,6 +60,7 @@
 				AE0000020000000000000001 /* AppDelegate.swift */,
 				AE0000250000000000000001 /* ArchiveMapPicker.swift */,
 				AE0000040000000000000001 /* EditableMap.swift */,
+				AE0000270000000000000001 /* FeatureCommand.swift */,
 				AE0000060000000000000001 /* HeightBrushCommand.swift */,
 				AE0000080000000000000001 /* MapCanvasView.swift */,
 				AE00000A0000000000000001 /* MapEditorWindowController.swift */,
@@ -153,6 +156,7 @@
 				AE0000010000000000000001 /* AppDelegate.swift in Sources */,
 				AE0000240000000000000001 /* ArchiveMapPicker.swift in Sources */,
 				AE0000030000000000000001 /* EditableMap.swift in Sources */,
+				AE0000260000000000000001 /* FeatureCommand.swift in Sources */,
 				AE0000050000000000000001 /* HeightBrushCommand.swift in Sources */,
 				AE0000070000000000000001 /* MapCanvasView.swift in Sources */,
 				AE0000090000000000000001 /* MapEditorWindowController.swift in Sources */,
